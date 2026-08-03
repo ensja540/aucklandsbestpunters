@@ -77,7 +77,7 @@ function clean(b) {
   return {
     id: String(b.id).slice(0, 40),
     date: String(b.date || '').slice(0, 10),
-    punter: b.punter === 'p2' ? 'p2' : 'p1',
+    punter: String(b.punter || '').slice(0, 24),
     sport: String(b.sport || 'Other').slice(0, 40),
     event: String(b.event || '').slice(0, 80),
     legs: Math.max(1, Math.min(30, Math.round(Number(b.legs) || 1))),

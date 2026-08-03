@@ -10,12 +10,36 @@ const ABP = (() => {
   const SPORTS = ['NRL', 'Football', 'NBA', 'Rugby Union', 'AFL', 'Cricket', 'Tennis',
                   'Horse racing', 'Harness', 'Greyhounds', 'UFC', 'NFL', 'Golf', 'Esports'];
 
+  // The club. Slot fixes each member's colour for good — it never follows their
+  // rank on the ladder, so a filter can't repaint anyone.
+  const FOUNDING = [
+    { id: 'm1', name: 'Matt Byrne' },
+    { id: 'm2', name: 'David Wood' },
+    { id: 'm3', name: 'James Stevenson-Wright' },
+    { id: 'm4', name: 'Sam Moses' },
+    { id: 'm5', name: 'Dylan Ryan' },
+    { id: 'm6', name: 'Kevin McCormick' },
+    { id: 'm7', name: 'Rory O’Brien', title: 'Club president' },
+    { id: 'm8', name: 'Jack Ensor' },
+    { id: 'm9', name: 'Michael Mayhew' }
+  ];
+
+  const WEEKLY_IN = 10;          // what each member tips in every week
+
   const DEFAULT_STATE = () => ({
     club: {
-      punters: [
-        { id: 'p1', name: 'Punter 1', budget: 45 },
-        { id: 'p2', name: 'Punter 2', budget: 45 }
+      members: FOUNDING.map((m, i) => ({ ...m, budget: WEEKLY_IN, slot: i })),
+      goals: [
+        { id: 'g1', emoji: '🌴', name: 'Fiji', target: 4500 }
       ],
+      // The batting order. Two members put the club's money on each week and the
+      // pointer walks two places along, so with nine of us the pairs shift every
+      // week: Jack & James, Rory & Kevin, … Dylan & Jack, James & Rory, and on.
+      rota: ['m8', 'm3', 'm7', 'm6', 'm4', 'm9', 'm2', 'm1', 'm5'],
+      rotaSize: 2,
+      // Anchor: the week the order starts back at the top. David & Matt had the
+      // week of 3 Aug 2026, which puts Dylan & Jack up next.
+      rotaStart: '2026-07-13',
       patterns: false,
       motion: true
     },
@@ -157,9 +181,11 @@ const ABP = (() => {
     return map;
   }
 
+  // `list` goes on last on purpose: summarise() has its own numeric `bets`
+  // count, and spreading it after would quietly turn the list into a number.
   function summariseBy(bets, keyFn) {
     const out = [];
-    for (const [key, list] of groupBy(bets, keyFn)) out.push({ key, bets: list, ...summarise(list) });
+    for (const [key, list] of groupBy(bets, keyFn)) out.push({ key, ...summarise(list), list });
     return out;
   }
 
@@ -183,6 +209,102 @@ const ABP = (() => {
       .slice(-n);
   }
 
+  /* ── whose turn it is ────────────────────────────────────
+     One turn per week, repeating. Turn 0 lands on rotaStart (or the week
+     the club's first bet went on, if nobody has set one). */
+
+  function weeksBetween(fromIso, toIso) {
+    const a = new Date(weekStart(fromIso) + 'T00:00:00');
+    const b = new Date(weekStart(toIso) + 'T00:00:00');
+    return Math.round((b - a) / (7 * 24 * 3600 * 1000));
+  }
+
+  function rotaOrigin() {
+    if (state.club.rotaStart) return weekStart(state.club.rotaStart);
+    const first = liveBets().map(b => b.date).sort()[0];
+    return weekStart(first || today());
+  }
+
+  const rotaOrder = () =>
+    (state.club.rota || []).filter(id => state.club.members.some(m => m.id === id));
+
+  // The pointer walks `rotaSize` places along the order every week and wraps.
+  // With an odd roster that means the pairings change every week, which is the
+  // whole point — nobody gets stuck with the same partner.
+  function turnIndex(weekIso) {
+    const order = rotaOrder();
+    if (!order.length) return -1;
+    const size = Math.max(1, state.club.rotaSize || 2);
+    const n = weeksBetween(rotaOrigin(), weekIso);
+    return (((n * size) % order.length) + order.length) % order.length;
+  }
+
+  function turnFor(weekIso) {
+    const order = rotaOrder();
+    const p = turnIndex(weekIso);
+    if (p < 0) return { index: -1, ids: [], week: weekStart(weekIso) };
+    const size = Math.min(Math.max(1, state.club.rotaSize || 2), order.length);
+    const ids = [];
+    for (let i = 0; i < size; i++) ids.push(order[(p + i) % order.length]);
+    return { index: p, ids, week: weekStart(weekIso) };
+  }
+
+  // Which week offset puts `pos` at the front, so "whose turn is it" is settable.
+  function weekOffsetFor(pos) {
+    const order = rotaOrder();
+    const size = Math.max(1, state.club.rotaSize || 2);
+    for (let w = 0; w < order.length; w++) if ((w * size) % order.length === pos) return w;
+    return 0;
+  }
+
+  function upcomingTurns(count = 5, fromIso = today()) {
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const week = addWeeks(weekStart(fromIso), i);
+      out.push(turnFor(week));
+    }
+    return out;
+  }
+
+  /* ── the club bank ───────────────────────────────────────
+     Everyone tips in every week whether they back a winner or not, so the
+     bank is contributions plus whatever the betting did to them. */
+
+  function weeklyIn() {
+    return state.club.members.reduce((sum, m) => sum + (m.budget ?? WEEKLY_IN), 0);
+  }
+
+  function bankSeries(bets) {
+    const dates = bets.map(b => b.date).sort();
+    if (!dates.length) return { weeks: [], rows: [], now: { weeks: 0, contributions: 0, winnings: 0, staked: 0, profit: 0, bank: 0 } };
+
+    const weeks = weekRange(dates[0], today());
+    const perWeek = weeklyIn();
+    const byWeek = {};
+    weeks.forEach(w => (byWeek[w] = { staked: 0, returned: 0, profit: 0, bets: 0 }));
+    bets.forEach(b => {
+      const cell = byWeek[weekStart(b.date)];
+      if (!cell) return;
+      cell.bets++;
+      if (isSettled(b)) {
+        cell.staked += turnoverOf(b);
+        cell.returned += b.result === 'void' ? 0 : returned(b);
+        cell.profit += profitOf(b);
+      }
+    });
+
+    let contributions = 0, winnings = 0, staked = 0, profit = 0;
+    const rows = weeks.map((w, i) => {
+      contributions += perWeek;
+      winnings += byWeek[w].returned;
+      staked += byWeek[w].staked;
+      profit += byWeek[w].profit;
+      return { week: w, index: i, contributions, winnings, staked, profit, bank: contributions + profit, bets: byWeek[w].bets };
+    });
+
+    return { weeks, rows, now: rows[rows.length - 1] || { contributions: 0, winnings: 0, staked: 0, profit: 0, bank: 0 } };
+  }
+
   /* ── filtering ───────────────────────────────────────────── */
 
   function applyFilters(bets, f) {
@@ -200,11 +322,14 @@ const ABP = (() => {
 
   /* ── storage ─────────────────────────────────────────────── */
 
+  function memberIds() { return new Set(state.club.members.map(m => m.id)); }
+
   function normalise(b) {
+    const who = String(b.punter || '');
     return {
       id: b.id || uid(),
       date: b.date,
-      punter: b.punter === 'p2' ? 'p2' : 'p1',
+      punter: memberIds().has(who) ? who : (state.club.members[0] || { id: 'm1' }).id,
       sport: (b.sport || 'Other').trim(),
       event: (b.event || '').trim(),
       legs: Math.max(1, Math.round(Number(b.legs) || 1)),
@@ -312,7 +437,7 @@ const ABP = (() => {
   const CSV_COLS = ['date', 'punter', 'sport', 'event', 'legs', 'sgm', 'stake', 'odds', 'result'];
 
   function toCsv() {
-    const names = Object.fromEntries(state.club.punters.map(p => [p.id, p.name]));
+    const names = Object.fromEntries(state.club.members.map(m => [m.id, m.name]));
     const head = ['date', 'punter', 'sport', 'event', 'legs', 'sgm', 'stake', 'odds', 'result', 'returned', 'profit'];
     const esc = v => {
       const s = String(v ?? '');
@@ -347,7 +472,13 @@ const ABP = (() => {
     const idx = Object.fromEntries(CSV_COLS.map(c => [c, head.indexOf(c)]));
     if (idx.date < 0 || idx.stake < 0 || idx.odds < 0) throw new Error('CSV needs at least date, stake and odds columns.');
 
-    const names = Object.fromEntries(state.club.punters.map(p => [p.name.toLowerCase(), p.id]));
+    // Match on full name, first name, or the raw member id.
+    const names = {};
+    state.club.members.forEach(m => {
+      names[m.name.toLowerCase()] = m.id;
+      names[m.name.toLowerCase().split(' ')[0]] = names[m.name.toLowerCase().split(' ')[0]] || m.id;
+      names[m.id] = m.id;
+    });
     const get = (r, k) => (idx[k] >= 0 ? (r[idx[k]] || '').trim() : '');
 
     return rows.slice(1).filter(r => r.some(v => v.trim())).map(r => {
@@ -355,7 +486,7 @@ const ABP = (() => {
       return normalise({
         id: uid(),
         date: get(r, 'date'),
-        punter: names[who] || (who === 'p2' ? 'p2' : 'p1'),
+        punter: names[who] || '',
         sport: get(r, 'sport') || 'Other',
         event: get(r, 'event'),
         legs: get(r, 'legs') || 1,
@@ -379,16 +510,32 @@ const ABP = (() => {
   }
 
   // A fixed seed so the sample season tells the same story every time.
-  function sampleSeason(weeks = 14) {
+  function sampleSeason(weeks = 12) {
     const rnd = mulberry32(20260803);
     const pick = arr => arr[Math.floor(rnd() * arr.length)];
 
-    const profile = {
-      p1: { sports: ['NRL', 'NRL', 'NRL', 'Rugby Union', 'Rugby Union', 'Football', 'NBA', 'Cricket', 'Horse racing'],
-            legs: [1, 1, 1, 2, 2, 2, 3, 3, 4], edge: { NRL: 0.06, 'Rugby Union': 0.03, Football: -0.02, NBA: -0.05, Cricket: 0.0, 'Horse racing': -0.08 } },
-      p2: { sports: ['NBA', 'NBA', 'Football', 'Football', 'NRL', 'AFL', 'Tennis', 'UFC', 'Horse racing'],
-            legs: [1, 2, 3, 3, 4, 4, 4, 5, 6], edge: { NBA: 0.04, Football: -0.03, NRL: -0.06, AFL: 0.02, Tennis: 0.05, UFC: -0.04, 'Horse racing': -0.10 } }
-    };
+    // Each member punts differently: their sports, their taste in legs, and a
+    // small edge (or leak) per sport.
+    const STYLES = [
+      { sports: ['NRL', 'NRL', 'NRL', 'Rugby Union', 'Rugby Union', 'Cricket'], legs: [1, 1, 1, 2, 2, 3],
+        edge: { NRL: 0.07, 'Rugby Union': 0.04, Cricket: -0.02 } },
+      { sports: ['Football', 'Football', 'Football', 'NBA', 'Tennis'], legs: [1, 2, 2, 3, 3],
+        edge: { Football: 0.03, NBA: -0.04, Tennis: 0.01 } },
+      { sports: ['NBA', 'NBA', 'NFL', 'Football', 'UFC'], legs: [2, 3, 4, 4, 5],
+        edge: { NBA: -0.02, NFL: -0.05, Football: -0.06, UFC: 0.02 } },
+      { sports: ['Horse racing', 'Harness', 'Greyhounds', 'Horse racing'], legs: [1, 1, 2, 2],
+        edge: { 'Horse racing': -0.03, Harness: 0.02, Greyhounds: -0.07 } },
+      { sports: ['Rugby Union', 'NRL', 'AFL', 'Cricket', 'Golf'], legs: [1, 2, 2, 3, 4],
+        edge: { 'Rugby Union': 0.05, NRL: -0.03, AFL: 0.01, Cricket: 0.03, Golf: -0.08 } },
+      { sports: ['NRL', 'AFL', 'AFL', 'Football', 'Esports'], legs: [2, 3, 4, 4, 5],
+        edge: { NRL: -0.05, AFL: 0.04, Football: -0.02, Esports: 0.06 } },
+      { sports: ['Cricket', 'Tennis', 'Golf', 'Rugby Union', 'NBA'], legs: [1, 1, 2, 2, 3],
+        edge: { Cricket: 0.05, Tennis: 0.04, Golf: 0.02, 'Rugby Union': -0.01, NBA: -0.03 } },
+      { sports: ['NRL', 'NBA', 'Football', 'UFC', 'Horse racing'], legs: [2, 3, 3, 4, 6],
+        edge: { NRL: 0.02, NBA: 0.03, Football: -0.05, UFC: -0.06, 'Horse racing': -0.09 } },
+      { sports: ['Football', 'Tennis', 'NFL', 'NBA', 'Esports'], legs: [2, 4, 4, 5, 6],
+        edge: { Football: -0.04, Tennis: -0.02, NFL: 0.01, NBA: -0.03, Esports: -0.05 } }
+    ];
 
     const events = {
       NRL: ['Warriors v Storm', 'Broncos v Panthers', 'Roosters v Souths', 'Sharks v Raiders'],
@@ -397,25 +544,34 @@ const ABP = (() => {
       'Rugby Union': ['Blues v Crusaders', 'ABs v Springboks', 'Chiefs v Hurricanes'],
       AFL: ['Cats v Pies', 'Lions v Swans'],
       Cricket: ['Black Caps v Aus', 'Aces v Stags'],
+      'Horse racing': ['Ellerslie R6', 'Te Rapa R4', 'Trentham R7'],
+      Harness: ['Alexandra Park R5', 'Addington R8'],
+      Greyhounds: ['Manukau R3', 'Addington R11'],
+      NFL: ['Chiefs v Bills', '49ers v Eagles'],
+      Golf: ['The Open — top 10 finish', 'US PGA outright'],
+      Esports: ['CS2 major — quarters', 'LoL Worlds'],
       Tennis: ['Djokovic v Alcaraz', 'Sinner v Zverev'],
-      UFC: ['Main card — Volkanovski'],
-      'Horse racing': ['Ellerslie R6', 'Te Rapa R4', 'Trentham R7']
+      UFC: ['Main card — Volkanovski', 'Prelims parlay']
     };
 
     const bets = [];
     const start = addWeeks(weekStart(today()), -(weeks - 1));
+    const roster = state.club.members.length ? state.club.members : DEFAULT_STATE().club.members;
 
     for (let w = 0; w < weeks; w++) {
       const monday = addWeeks(start, w);
-      for (const pid of ['p1', 'p2']) {
-        const prof = profile[pid];
-        const budget = 45;
+      for (let mi = 0; mi < roster.length; mi++) {
+        const member = roster[mi];
+        const pid = member.id;
+        const prof = STYLES[mi % STYLES.length];
+        const budget = member.budget || 45;
+        if (rnd() < 0.08) continue;                       // someone always sits a week out
         let left = budget;
-        const count = 4 + Math.floor(rnd() * 3);           // 4–6 tickets a week
-        for (let i = 0; i < count && left >= 3; i++) {
+        const count = 2 + Math.floor(rnd() * 2);           // 2–3 tickets off a $10 week
+        for (let i = 0; i < count && left >= 2; i++) {
           const last = i === count - 1;
-          const stake = last ? Math.max(3, Math.round(left))
-                             : Math.max(3, Math.round((left / (count - i)) * (0.6 + rnd() * 0.9)));
+          const stake = last ? Math.max(2, Math.round(left))
+                             : Math.max(2, Math.round((left / (count - i)) * (0.6 + rnd() * 0.9)));
           if (stake > left) continue;
           left -= stake;
 
@@ -430,7 +586,7 @@ const ABP = (() => {
           const odds = Math.round(base * 100) / 100;
 
           // True chance sits under 1/odds — the bookie's margin, widened on longer multis.
-          const margin = 0.96 - (legs - 1) * 0.025 + (prof.edge[sport] || 0);
+          const margin = 0.96 - (legs - 1) * 0.02 + (prof.edge[sport] || 0);
           const chance = Math.max(0.01, Math.min(0.92, (1 / odds) * Math.max(0.5, margin)));
 
           const roll = rnd();
@@ -530,6 +686,8 @@ const ABP = (() => {
     isoDate, today, weekStart, addWeeks, weekRange,
     isSettled, isLive, returned, profitOf, turnoverOf, legBucket, typeOf,
     summarise, summariseBy, groupBy, bestStreak, longestRun, formRun, applyFilters,
+    weeklyIn, bankSeries, WEEKLY_IN,
+    turnFor, turnIndex, upcomingTurns, rotaOrigin, rotaOrder, weekOffsetFor, weeksBetween,
     toCsv, parseCsv, sampleSeason, sync
   };
 })();

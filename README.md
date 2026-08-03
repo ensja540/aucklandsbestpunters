@@ -1,11 +1,19 @@
 # Auckland's Best Punters
 
-A two-punter club ledger. Each punter has a weekly allowance ($45 by default); the
-site tracks every ticket and answers the three questions the club actually argues about:
+The club ledger. Nine members, $10 each a week into the tin, two members rostered
+on to put it on. The site tracks every ticket and answers what the club actually
+argues about:
 
-1. **Who's up?** — running profit, ROI, strike rate, weeks won, head to head.
-2. **Which sports pay?** — profit, ROI and strike rate per sport, ranked.
-3. **How many legs is too many?** — profit by multi length (single → 6+ legs).
+1. **Whose turn is it?** — the rota cycles two names down a nine-name list every
+   week, so the pairings shift and nobody is stuck with the same partner.
+2. **Who's up?** — the ladder: profit, ROI, strike rate, form and hot streaks.
+3. **What's in the tin?** — money paid in ($90 a week) against what the betting
+   collected, and how close that gets the club to Fiji.
+4. **Which sports pay?** — profit, ROI and strike rate per sport, ranked.
+5. **How many legs is too many?** — profit by multi length (single → 6+ legs).
+
+When a multi lands, the whole page stops and says so — once per person, so the
+rest of the club still gets it when they next open the site.
 
 No build step, no framework, no dependencies. Plain HTML, CSS and JavaScript.
 
@@ -79,6 +87,11 @@ it just saves locally on each device.
 
 ## Entering bets
 
+- **Place a bet** takes either decimal odds *or* what the ticket pays if it wins —
+  toggle between them. Entering the payout works out the odds for you.
+- When a bet settles, **Waiting on a result** lists it with the payout prefilled.
+  Change the number to whatever actually landed and hit *Collected* — the odds are
+  recalculated from the real payout, so partial cash-outs and bonus boosts stay honest.
 - **Odds are decimal** (2.50, not 6/4 or −150).
 - **Legs** is the number of selections on the ticket: 1 is a single, 4 is a four-leg multi.
   Tick *same-game multi* for an SGM.

@@ -179,37 +179,52 @@ const Charts = (() => {
         text(svg, X(i), H - 8, lab, { anchor: i === labels.length - 1 ? 'end' : 'middle' });
       });
 
-      // series
-      series.forEach((s, si) => {
+      // Emphasis: the field goes down first in de-emphasis grey, the named
+      // series on top in their own hue. Colour never follows rank.
+      const back = s => s.muted || s.reference;      // drawn first, in de-emphasis grey
+      const ordered = [...series].sort((a, b) => (back(a) === back(b) ? 0 : back(a) ? -1 : 1));
+      const focus = ordered.filter(s => !s.muted);
+
+      ordered.forEach((s, si) => {
         const pts = s.values.map((v, i) => (v === null ? null : [X(i), Y(v)])).filter(Boolean);
         if (!pts.length) return;
         const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ' ' + p[1]).join(' ');
 
-        el('path', {
-          d: `${d} L${pts[pts.length - 1][0]} ${Y(yMin)} L${pts[0][0]} ${Y(yMin)} Z`,
-          fill: s.color, opacity: 0.08
-        }, svg);
+        if (!back(s) && (s.lead || focus.length === 1)) {
+          el('path', {
+            d: `${d} L${pts[pts.length - 1][0]} ${Y(yMin)} L${pts[0][0]} ${Y(yMin)} Z`,
+            fill: s.color, opacity: 0.09
+          }, svg);
+        }
 
         const path = el('path', {
-          d, fill: 'none', stroke: s.color, 'stroke-width': 2,
+          d, fill: 'none',
+          stroke: back(s) ? css('--axis') : s.color,
+          'stroke-width': s.muted ? 1.25 : s.reference ? 1.75 : 2,
+          opacity: s.muted ? 0.75 : 1,
           'stroke-linejoin': 'round', 'stroke-linecap': 'round',
           class: animate() ? 'anim-draw' : ''
         }, svg);
         if (animate()) {
           const len = path.getTotalLength();
           path.style.setProperty('--len', len);
-          path.style.animationDelay = si * 110 + 'ms';
+          path.style.animationDelay = si * 60 + 'ms';
         }
 
+        if (s.muted) return;
         const last = pts[pts.length - 1];
-        el('circle', { cx: last[0], cy: last[1], r: 4.5, fill: s.color, stroke: css('--surface-1'), 'stroke-width': 2 }, svg);
+        el('circle', {
+          cx: last[0], cy: last[1], r: s.reference ? 3.5 : 4.5,
+          fill: s.reference ? css('--axis') : s.color, stroke: css('--surface-1'), 'stroke-width': 2
+        }, svg);
         // direct end label — identity from the dot, never coloured text
         text(svg, last[0] + 9, last[1] + 4, s.short ?? s.name, { size: 11.5, weight: 600, fill: css('--ink') });
       });
 
       // crosshair + hover/keyboard readout
       const cross = el('line', { y1: m.t, y2: m.t + ih, stroke: css('--axis'), 'stroke-width': 1, opacity: 0 }, svg);
-      const dots = series.map(s => el('circle', { r: 4.5, fill: s.color, stroke: css('--surface-1'), 'stroke-width': 2, opacity: 0 }, svg));
+      const readable = focus.length ? focus : series;
+      const dots = readable.map(s => el('circle', { r: 4.5, fill: s.color, stroke: css('--surface-1'), 'stroke-width': 2, opacity: 0 }, svg));
       let active = -1;
 
       function focusIdx(i, clientX, clientY) {
@@ -218,7 +233,7 @@ const Charts = (() => {
         const x = X(i);
         cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('opacity', 1);
         let rows = '';
-        series.forEach((s, si) => {
+        readable.forEach((s, si) => {
           const v = s.values[i];
           if (v === null || v === undefined) { dots[si].setAttribute('opacity', 0); return; }
           dots[si].setAttribute('cx', x); dots[si].setAttribute('cy', Y(v)); dots[si].setAttribute('opacity', 1);
@@ -431,7 +446,88 @@ const Charts = (() => {
     });
   }
 
-  /* ── 5. sparkline (stat tiles) ───────────────────────────── */
+  /* ── 5. form grid (members × weeks, diverging) ───────────── */
+
+  function hexToRgb(h) {
+    const s = h.replace('#', '');
+    const n = parseInt(s.length === 3 ? s.split('').map(c => c + c).join('') : s, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function mix(a, b, t) {
+    const A = hexToRgb(a), B = hexToRgb(b);
+    return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join('');
+  }
+
+  // Diverging: one hue each side of a neutral middle, never a hue at zero.
+  function divergingScale(v, max, colors) {
+    if (!max) return colors.mid;
+    const t = Math.min(1, Math.abs(v) / max);
+    // ease so small results still read as "something happened"
+    const e = Math.pow(t, 0.62);
+    return mix(colors.mid, v >= 0 ? colors.pos : colors.neg, e);
+  }
+
+  function heatmap(host, cfg) {
+    const { rows, cols, colors, fmt = String, fmtFull = fmt, rowLabel = r => r.label } = cfg;
+    if (!rows.length || !cols.length) return emptyState(host, cfg.empty || 'Nothing to plot yet.');
+
+    mount(host, width => {
+      host.innerHTML = '';
+      const w = Math.max(280, width);
+      const labelW = Math.min(132, Math.max(74, w * 0.2));
+      const rowH = 30, gap = 2;
+      const m = { t: 22, r: 4, b: 8, l: labelW };
+      const cellW = Math.max(14, (w - m.l - m.r) / cols.length);
+      const H = m.t + rows.length * rowH + m.b;
+
+      const svg = el('svg', { viewBox: `0 0 ${w} ${H}`, height: H, role: 'img', 'aria-label': cfg.aria || 'Heatmap' }, host);
+      const max = Math.max(...rows.flatMap(r => r.values.map(v => Math.abs(v || 0))), 1);
+
+      // column headers, thinned to fit
+      const every = Math.ceil(cols.length / Math.max(2, Math.floor((w - m.l) / 58)));
+      cols.forEach((c, i) => {
+        if (i % every && i !== cols.length - 1) return;
+        text(svg, m.l + i * cellW + cellW / 2, 13, c.short || c.label, { anchor: 'middle', size: 10.5 });
+      });
+
+      rows.forEach((r, ri) => {
+        const y = m.t + ri * rowH;
+        text(svg, m.l - 10, y + rowH / 2 + 4, rowLabel(r), { anchor: 'end', fill: css('--ink-2'), size: 12.5 });
+
+        r.values.forEach((v, ci) => {
+          const has = v !== null && v !== undefined;
+          const fill = has ? divergingScale(v, max, colors) : css('--surface-2');
+          const node = el('rect', {
+            x: m.l + ci * cellW + gap / 2, y: y + gap / 2,
+            width: Math.max(1, cellW - gap), height: rowH - gap,
+            rx: 3, fill, class: 'mark' + (animate() ? ' anim-fade' : '')
+          }, svg);
+          if (animate()) node.style.animationDelay = (ri * 26 + ci * 8) + 'ms';
+
+          const hit = el('rect', {
+            x: m.l + ci * cellW, y, width: cellW, height: rowH, class: 'hit'
+          }, svg);
+          hit.addEventListener('pointerenter', ev => tip.show(
+            `<b>${rowLabel(r)}</b>` +
+            tipRow(null, cols[ci].label, has ? fmtFull(v) : 'No bets') +
+            (r.notes && r.notes[ci] ? tipRow(null, 'Bets', r.notes[ci]) : ''),
+            ev.clientX, ev.clientY));
+          hit.addEventListener('pointerleave', tip.hide);
+        });
+      });
+    });
+  }
+
+  // The scale legend a diverging encoding always ships with.
+  function scaleLegend(host, { max, colors, fmt }) {
+    const steps = [-1, -0.55, -0.2, 0, 0.2, 0.55, 1];
+    host.innerHTML =
+      `<span class="scale-end">${fmt(-max)}</span>` +
+      steps.map(t => `<i class="scale-chip" style="background:${divergingScale(t * max, max, colors)}"></i>`).join('') +
+      `<span class="scale-end">${fmt(max)}</span>`;
+  }
+
+  /* ── 6. sparkline (stat tiles) ───────────────────────────── */
 
   function sparkline(values, color, w = 86, h = 24) {
     if (!values.length) return '';
@@ -457,7 +553,10 @@ const Charts = (() => {
     });
   }
 
-  return { configure, line, groupedColumns, divergingBars, divergingColumns, sparkline, tip, tipRow, refreshAll, css, niceTicks };
+  return {
+    configure, line, groupedColumns, divergingBars, divergingColumns, heatmap,
+    scaleLegend, divergingScale, sparkline, tip, tipRow, refreshAll, css, niceTicks
+  };
 })();
 
 window.Charts = Charts;

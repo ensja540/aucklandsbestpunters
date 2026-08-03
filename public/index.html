@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Auckland's Best Punters — the ledger</title>
-<meta name="description" content="Private club ledger for two punters. Weekly outlay, running profit, and which sports and multi lengths actually pay.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 3h10l3 4-3 2v12H7V9L4 7z' fill='%232a78d6'/%3E%3C/svg%3E">
+<meta name="description" content="Club ledger for Auckland's Best Punters. The ladder, weekly outlay, which sports pay, and how many legs is too many.">
+<meta name="theme-color" content="#0b0d10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 27'%3E%3Cpath d='M8 1h8l7 4.5-3.2 6L16 9.3V26H8V9.3l-3.8 2.2L1 5.5Z' fill='%232a78d6'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -17,30 +18,53 @@
       <span class="wordmark-silk" id="wordmarkSilk"></span>
       <span class="wordmark-text">
         <b>Auckland's Best Punters</b>
-        <i>the ledger · aucklandsbestpunters.co.nz</i>
+        <i>Est. 2026 · the ledger</i>
       </span>
     </div>
     <nav class="tabs" aria-label="Sections">
-      <button class="tab is-on" data-view="dashboard" aria-current="page">Dashboard</button>
-      <button class="tab" data-view="bets">Bets</button>
-      <button class="tab" data-view="settings">Settings</button>
+      <button class="tab is-on" data-view="dashboard" aria-current="page">Ladder</button>
+      <button class="tab" data-view="bets">Place a bet</button>
+      <button class="tab" data-view="settings">Club</button>
     </nav>
     <button class="icon-btn" id="themeBtn" title="Switch theme" aria-label="Switch theme"><span id="themeGlyph">◐</span></button>
+  </div>
+  <div class="ticker" id="ticker" hidden aria-label="Latest results">
+    <div class="ticker-track" id="tickerTrack"></div>
   </div>
 </header>
 
 <main id="main" class="wrap">
 
-  <!-- ══ Standings: the signature strip ══ -->
-  <section class="standings" id="standings" aria-label="Club standings">
-    <div class="punter-side" id="sideA"></div>
-    <div class="verdict">
-      <p class="verdict-eyebrow" id="verdictEyebrow">The ledger</p>
-      <p class="verdict-hero" id="verdictHero">—</p>
-      <p class="verdict-sub" id="verdictSub">Add a bet to start the ledger.</p>
-      <dl class="verdict-facts" id="verdictFacts"></dl>
+  <!-- ══ The scoreboard ══ -->
+  <section class="scoreboard" id="scoreboard" aria-label="Club standings">
+    <div class="score-hero">
+      <p class="score-eyebrow" id="verdictEyebrow">The ledger</p>
+      <p class="score-hero-fig" id="verdictHero">—</p>
+      <p class="score-sub" id="verdictSub">Nothing on the board yet.</p>
+      <div class="score-actions">
+        <button class="primary-btn" data-goto="bets">Place a bet</button>
+        <button class="ghost-btn" id="settleCta" data-goto="bets" hidden></button>
+      </div>
     </div>
-    <div class="punter-side punter-side--b" id="sideB"></div>
+    <dl class="score-facts" id="verdictFacts"></dl>
+  </section>
+
+  <!-- ══ Whose turn it is ══ -->
+  <section class="signs" id="signs" aria-label="Betting roster">
+    <div class="sign sign--live" id="signNow">
+      <p class="sign-label"><i class="lamp" aria-hidden="true"></i>Betting now</p>
+      <div class="sign-body" id="signNowBody"></div>
+      <p class="sign-foot" id="signNowFoot"></p>
+    </div>
+    <div class="sign sign--next" id="signNext">
+      <p class="sign-label">Up next</p>
+      <div class="sign-body" id="signNextBody"></div>
+      <p class="sign-foot" id="signNextFoot"></p>
+    </div>
+    <div class="sign sign--rota">
+      <p class="sign-label">The rota</p>
+      <ol class="rota-list" id="rotaList"></ol>
+    </div>
   </section>
 
   <!-- ══ Filters: one row, scopes everything below ══ -->
@@ -56,8 +80,8 @@
       </select>
     </div>
     <div class="filter">
-      <label for="fPunter">Punter</label>
-      <select id="fPunter"><option value="all">Both</option></select>
+      <label for="fPunter">Member</label>
+      <select id="fPunter"><option value="all">Whole club</option></select>
     </div>
     <div class="filter">
       <label for="fSport">Sport</label>
@@ -78,14 +102,50 @@
 
   <!-- ══ Dashboard ══ -->
   <div class="view" id="view-dashboard">
-
     <div class="grid">
+
+      <section class="card card--wide" data-chart="ladder">
+        <div class="card-head">
+          <div>
+            <h2>The ladder</h2>
+            <p class="card-sub">Every member, ranked on profit. Tap a name to follow just them.</p>
+          </div>
+        </div>
+        <div class="tablewrap" id="ladder"></div>
+      </section>
+
+      <section class="card card--wide" data-chart="bank">
+        <div class="card-head">
+          <div>
+            <h2>The club bank</h2>
+            <p class="card-sub" id="bankSub">What we've put in, what we've collected, and what's actually in the tin.</p>
+          </div>
+          <div class="seg" role="group" aria-label="View as">
+            <button class="seg-btn is-on" data-mode="chart">Chart</button>
+            <button class="seg-btn" data-mode="table">Table</button>
+          </div>
+        </div>
+        <div class="bank-figs" id="bankFigs"></div>
+        <div class="legend" id="bankLegend"></div>
+        <div class="plot" id="bankChart"></div>
+        <div class="tablewrap" id="bankTable" hidden></div>
+      </section>
+
+      <section class="card card--wide" data-chart="goals">
+        <div class="card-head">
+          <div>
+            <h2>Club aspirations</h2>
+            <p class="card-sub">What the tin is actually for.</p>
+          </div>
+        </div>
+        <div class="goals" id="goals"></div>
+      </section>
 
       <section class="card card--wide" data-chart="cume">
         <div class="card-head">
           <div>
             <h2>Running profit</h2>
-            <p class="card-sub">Cumulative profit by week. Zero is break-even, not your bank.</p>
+            <p class="card-sub" id="cumeSub">Cumulative profit by week.</p>
           </div>
           <div class="seg" role="group" aria-label="View as">
             <button class="seg-btn is-on" data-mode="chart">Chart</button>
@@ -97,38 +157,27 @@
         <div class="tablewrap" id="cumeTable" hidden></div>
       </section>
 
-      <section class="card" data-chart="weekly">
+      <section class="card card--wide" data-chart="grid">
         <div class="card-head">
           <div>
-            <h2>Week by week</h2>
-            <p class="card-sub">Net result each week, per punter.</p>
+            <h2>Form grid</h2>
+            <p class="card-sub">Every member's week, green light to red light. Blue is up, red is down.</p>
           </div>
           <div class="seg" role="group" aria-label="View as">
             <button class="seg-btn is-on" data-mode="chart">Chart</button>
             <button class="seg-btn" data-mode="table">Table</button>
           </div>
         </div>
-        <div class="legend" id="weeklyLegend"></div>
-        <div class="plot" id="weeklyChart"></div>
-        <div class="tablewrap" id="weeklyTable" hidden></div>
-      </section>
-
-      <section class="card" data-chart="outlay">
-        <div class="card-head">
-          <div>
-            <h2>Weekly outlay</h2>
-            <p class="card-sub">Staked against the <span id="budgetLabel">$45</span> weekly allowance.</p>
-          </div>
-        </div>
-        <div class="meters" id="outlayMeters"></div>
-        <div class="tablewrap" id="outlayTable"></div>
+        <div class="legend legend--scale" id="gridLegend"></div>
+        <div class="plot" id="gridChart"></div>
+        <div class="tablewrap" id="gridTable" hidden></div>
       </section>
 
       <section class="card" data-chart="sport">
         <div class="card-head">
           <div>
             <h2>Profit by sport</h2>
-            <p class="card-sub">Where the money actually comes from.</p>
+            <p class="card-sub">Where the club's money actually comes from.</p>
           </div>
           <div class="seg" role="group" aria-label="View as">
             <button class="seg-btn is-on" data-mode="chart">Chart</button>
@@ -156,34 +205,44 @@
         <div class="tablewrap" id="legsTable" hidden></div>
       </section>
 
-      <section class="card card--wide" data-chart="ledger">
-        <div class="card-head">
-          <div>
-            <h2>Sport ledger</h2>
-            <p class="card-sub">Every sport you've had a crack at, ranked by profit.</p>
-          </div>
-        </div>
-        <div class="tablewrap" id="sportLedger"></div>
-      </section>
-
       <section class="card card--wide" data-chart="prizes">
         <div class="card-head">
           <div>
             <h2>The honours board</h2>
-            <p class="card-sub">Silverware and wooden spoons, updated with every settled bet. Follows the filters.</p>
+            <p class="card-sub">Silverware and wooden spoons, updated with every settled bet.</p>
           </div>
         </div>
         <div class="prizes" id="prizes"></div>
       </section>
 
-      <section class="card card--wide" data-chart="h2h">
+      <section class="card card--wide" data-chart="outlay">
         <div class="card-head">
           <div>
-            <h2>Head to head</h2>
-            <p class="card-sub">Weeks won, best and worst tickets, longest run.</p>
+            <h2>This week's outlay</h2>
+            <p class="card-sub">Staked against each member's <span id="budgetLabel">$45</span> weekly allowance.</p>
           </div>
         </div>
-        <div class="tablewrap" id="h2hTable"></div>
+        <div class="meters" id="outlayMeters"></div>
+      </section>
+
+      <section class="card card--wide" data-chart="ledger">
+        <div class="card-head">
+          <div>
+            <h2>Sport ledger</h2>
+            <p class="card-sub">Every sport the club has had a crack at, ranked by profit.</p>
+          </div>
+        </div>
+        <div class="tablewrap" id="sportLedger"></div>
+      </section>
+
+      <section class="card card--wide" data-chart="book">
+        <div class="card-head">
+          <div>
+            <h2>The full book</h2>
+            <p class="card-sub">The whole club, every number.</p>
+          </div>
+        </div>
+        <div class="tablewrap" id="bookTable"></div>
       </section>
 
     </div>
@@ -195,18 +254,18 @@
       <div class="card-head">
         <div>
           <h2 id="formTitle">Add a bet</h2>
-          <p class="card-sub">Odds are decimal. Leave the result as pending until it settles.</p>
+          <p class="card-sub">Odds are decimal. Leave the result pending until it settles.</p>
         </div>
       </div>
       <form class="betform" id="betForm" autocomplete="off">
         <input type="hidden" id="bId">
         <div class="field">
-          <label for="bDate">Date</label>
-          <input type="date" id="bDate" required>
+          <label for="bPunter">Member</label>
+          <select id="bPunter" required></select>
         </div>
         <div class="field">
-          <label>Punter</label>
-          <div class="seg seg--punter" id="bPunter" role="group" aria-label="Punter"></div>
+          <label for="bDate">Date</label>
+          <input type="date" id="bDate" required>
         </div>
         <div class="field">
           <label for="bSport">Sport</label>
@@ -225,9 +284,20 @@
           <label for="bStake">Stake</label>
           <input type="number" id="bStake" min="0.5" step="0.5" value="10" required>
         </div>
-        <div class="field field--sm">
+        <div class="field field--sm" id="oddsField">
           <label for="bOdds">Odds</label>
-          <input type="number" id="bOdds" min="1.01" step="0.01" value="2.00" required>
+          <input type="number" id="bOdds" min="1.01" step="0.01" value="2.00">
+        </div>
+        <div class="field field--sm" id="payField" hidden>
+          <label for="bReturn">Pays if it wins</label>
+          <input type="number" id="bReturn" min="0" step="0.5" value="20">
+        </div>
+        <div class="field">
+          <label>Price entered as</label>
+          <div class="seg" id="bPriceMode" role="group" aria-label="Price entered as">
+            <button type="button" class="seg-btn is-on" data-price="odds">Odds</button>
+            <button type="button" class="seg-btn" data-price="payout">Payout</button>
+          </div>
         </div>
         <div class="field">
           <label>Result</label>
@@ -247,6 +317,16 @@
       </form>
     </section>
 
+    <section class="card card--wide" id="pendingCard" hidden>
+      <div class="card-head">
+        <div>
+          <h2>Waiting on a result</h2>
+          <p class="card-sub">Tell the ledger what it paid. The amount is prefilled from the odds — change it if the payout was different.</p>
+        </div>
+      </div>
+      <div class="tablewrap" id="pendingTable"></div>
+    </section>
+
     <section class="card card--wide">
       <div class="card-head">
         <div>
@@ -262,20 +342,46 @@
     </section>
   </div>
 
-  <!-- ══ Settings ══ -->
+  <!-- ══ Club ══ -->
   <div class="view" id="view-settings" hidden>
     <div class="grid">
-      <section class="card">
+      <section class="card card--wide">
         <div class="card-head"><div>
-          <h2>The club</h2>
+          <h2>Members</h2>
           <p class="card-sub">Names show up everywhere. The allowance drives the outlay meters.</p>
         </div></div>
         <form class="settingsform" id="clubForm">
-          <div class="field"><label for="sNameA">Punter 1</label><input id="sNameA" maxlength="18" required></div>
-          <div class="field field--sm"><label for="sBudgetA">Weekly allowance</label><input type="number" id="sBudgetA" min="0" step="5" required></div>
-          <div class="field"><label for="sNameB">Punter 2</label><input id="sNameB" maxlength="18" required></div>
-          <div class="field field--sm"><label for="sBudgetB">Weekly allowance</label><input type="number" id="sBudgetB" min="0" step="5" required></div>
-          <div class="form-actions"><button class="primary-btn" type="submit">Save club</button></div>
+          <div class="members" id="memberRows"></div>
+          <div class="form-actions">
+            <button class="primary-btn" type="submit">Save club</button>
+            <button class="ghost-btn" type="button" id="addMember">Add a member</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card card--wide">
+        <div class="card-head"><div>
+          <h2>The rota</h2>
+          <p class="card-sub">Who puts the club's money on, and in what order. One turn a week.</p>
+        </div></div>
+        <div class="field field--wide">
+          <label for="sThisTurn">Whose turn is it this week</label>
+          <select id="sThisTurn"></select>
+        </div>
+        <ol class="rota-edit" id="rotaEdit"></ol>
+      </section>
+
+      <section class="card card--wide">
+        <div class="card-head"><div>
+          <h2>Aspirations</h2>
+          <p class="card-sub">What the club is saving towards. The bank fills them in order.</p>
+        </div></div>
+        <form class="settingsform" id="goalForm">
+          <div class="goal-rows" id="goalRows"></div>
+          <div class="form-actions">
+            <button class="primary-btn" type="submit">Save aspirations</button>
+            <button class="ghost-btn" type="button" id="addGoal">Add an aspiration</button>
+          </div>
         </form>
       </section>
 
@@ -288,15 +394,15 @@
         <label class="check"><input type="checkbox" id="sMotion"> Animate charts on load</label>
       </section>
 
-      <section class="card card--wide">
+      <section class="card">
         <div class="card-head"><div>
           <h2>Your data</h2>
-          <p class="card-sub">Everything lives in this browser. Export a backup before you clear anything.</p>
+          <p class="card-sub">Export a backup before you clear anything.</p>
         </div></div>
         <div class="datarow">
-          <button class="primary-btn" id="dExportJson">Export backup (.json)</button>
-          <button class="ghost-btn" id="dExportCsv">Export bets (.csv)</button>
-          <button class="ghost-btn" id="dImport">Import backup or CSV</button>
+          <button class="primary-btn" id="dExportJson">Export backup</button>
+          <button class="ghost-btn" id="dExportCsv">Export CSV</button>
+          <button class="ghost-btn" id="dImport">Import</button>
           <input type="file" id="dFile" accept=".json,.csv" hidden>
           <button class="ghost-btn" id="dSample">Load sample season</button>
           <button class="danger-btn" id="dClear">Clear all bets</button>
@@ -306,15 +412,12 @@
     </div>
   </div>
 
-  <p class="empty-note" id="emptyNote" hidden>
-    No bets in this slice. <button class="linklike" id="emptyReset">Clear the filters</button>
-    or <button class="linklike" id="emptyAdd">add a bet</button>.
-  </p>
+  <p class="empty-note" id="emptyNote" hidden></p>
 
 </main>
 
 <footer class="foot wrap">
-  <span>Auckland's Best Punters</span>
+  <span>Auckland's Best Punters · aucklandsbestpunters.co.nz</span>
   <span id="footStamp"></span>
 </footer>
 
