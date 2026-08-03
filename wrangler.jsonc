@@ -11,18 +11,13 @@
     "binding": "ASSETS"
   },
 
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 
-  // ── Shared ledger (optional) ────────────────────────────────────────────
-  // Without this, each browser keeps its own copy. To share one ledger
-  // between both punters:
-  //   1. Cloudflare dashboard → Storage & Databases → KV → Create namespace
-  //      "LEDGER", then copy its id.
-  //   2. Uncomment the block below and paste the id in.
-  //   3. Optional lock: Worker → Settings → Variables → add secret
-  //      CLUB_CODE. The site asks for it once per device.
-  //
-  // "kv_namespaces": [
-  //   { "binding": "LEDGER", "id": "PASTE_KV_NAMESPACE_ID_HERE" }
-  // ]
+  // The shared ledger. Every member's browser pushes here, the Worker merges
+  // by bet id with the newest edit winning, so nobody clobbers anybody.
+  // Optional lock: Worker → Settings → Variables and Secrets → add a secret
+  // named CLUB_CODE. The site then asks each device for it once.
+  "kv_namespaces": [
+    { "binding": "LEDGER", "id": "d5f5e35daa5a487d9eced911fd503f77" }
+  ]
 }
