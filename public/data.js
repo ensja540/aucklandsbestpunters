@@ -189,6 +189,46 @@ const ABP = (() => {
     return out;
   }
 
+  /* ── per-sport, with mixed multis split ──────────────────
+     A four-leg ticket across NRL and NBA puts half its stake and half its
+     result on each, so the sport rows still add up to the club total. The
+     ticket itself counts once on each sport, which is what you want for
+     strike rate: "how do NRL legs go for us". */
+
+  function sportsOf(b) { return b.sports && b.sports.length ? b.sports : [b.sport || 'Other']; }
+
+  function sportBreakdown(bets) {
+    const map = new Map();
+    for (const b of bets) {
+      if (!isSettled(b)) continue;
+      const list = sportsOf(b);
+      const share = 1 / list.length;
+      for (const s of list) {
+        if (!map.has(s)) {
+          map.set(s, { key: s, settled: 0, wins: 0, losses: 0, voids: 0, mixed: 0,
+                       staked: 0, turnover: 0, profit: 0, returned: 0, oddsSum: 0, oddsN: 0, list: [] });
+        }
+        const r = map.get(s);
+        r.settled++;
+        r.list.push(b);
+        if (list.length > 1) r.mixed++;
+        r.staked += b.stake * share;
+        r.turnover += turnoverOf(b) * share;
+        r.profit += profitOf(b) * share;
+        r.returned += returned(b) * share;
+        if (b.result === 'win') { r.wins++; r.oddsSum += b.odds; r.oddsN++; }
+        else if (b.result === 'loss') { r.losses++; r.oddsSum += b.odds; r.oddsN++; }
+        else r.voids++;
+      }
+    }
+    return [...map.values()].map(r => ({
+      ...r,
+      roi: r.turnover > 0 ? r.profit / r.turnover : null,
+      strike: r.wins + r.losses > 0 ? r.wins / (r.wins + r.losses) : null,
+      avgOdds: r.oddsN > 0 ? r.oddsSum / r.oddsN : null
+    }));
+  }
+
   // Longest run of one result, oldest → newest. Voids don't break a run.
   function longestRun(bets, result) {
     const settled = bets.filter(b => b.result === 'win' || b.result === 'loss')
@@ -310,7 +350,7 @@ const ABP = (() => {
   function applyFilters(bets, f) {
     let out = bets;
     if (f.punter && f.punter !== 'all') out = out.filter(b => b.punter === f.punter);
-    if (f.sport && f.sport !== 'all') out = out.filter(b => b.sport === f.sport);
+    if (f.sport && f.sport !== 'all') out = out.filter(b => sportsOf(b).includes(f.sport));
     if (f.type && f.type !== 'all') out = out.filter(b => typeOf(b) === f.type);
     if (f.period && f.period !== 'all') {
       const weeks = parseInt(f.period, 10);
@@ -324,13 +364,23 @@ const ABP = (() => {
 
   function memberIds() { return new Set(state.club.members.map(m => m.id)); }
 
+  // A multi can span sports, so `sports` is the truth and `sport` is just the
+  // first one, kept so older bets and the CSV column still work.
+  function cleanSports(b) {
+    const raw = Array.isArray(b.sports) ? b.sports : String(b.sport || '').split(/[;|+]/);
+    const out = [...new Set(raw.map(s => String(s).trim()).filter(Boolean))].slice(0, 8);
+    return out.length ? out : ['Other'];
+  }
+
   function normalise(b) {
     const who = String(b.punter || '');
+    const sports = cleanSports(b);
     return {
       id: b.id || uid(),
       date: b.date,
       punter: memberIds().has(who) ? who : (state.club.members[0] || { id: 'm1' }).id,
-      sport: (b.sport || 'Other').trim(),
+      sports,
+      sport: sports[0],
       event: (b.event || '').trim(),
       legs: Math.max(1, Math.round(Number(b.legs) || 1)),
       sgm: !!b.sgm,
@@ -445,7 +495,7 @@ const ABP = (() => {
     };
     const rows = liveBets()
       .slice().sort((a, b) => a.date.localeCompare(b.date))
-      .map(b => [b.date, names[b.punter] || b.punter, b.sport, b.event, b.legs, b.sgm ? 'yes' : 'no',
+      .map(b => [b.date, names[b.punter] || b.punter, sportsOf(b).join('; '), b.event, b.legs, b.sgm ? 'yes' : 'no',
                  b.stake.toFixed(2), b.odds.toFixed(2), b.result,
                  returned(b).toFixed(2), profitOf(b).toFixed(2)].map(esc).join(','));
     return [head.join(','), ...rows].join('\n');
@@ -598,8 +648,15 @@ const ABP = (() => {
           if (rnd() < 0.022) result = 'void';
           if (weekStart(date) === weekStart(today()) && rnd() < 0.5) result = 'pending';
 
+          // multis often stray across codes
+          const sports = [sport];
+          if (legs > 1 && rnd() < 0.38) {
+            const second = pick(prof.sports);
+            if (second !== sport) sports.push(second);
+          }
+
           bets.push(normalise({
-            id: uid(), date, punter: pid, sport,
+            id: uid(), date, punter: pid, sports,
             event: pick(events[sport] || ['—']),
             legs, sgm: legs > 1 && rnd() < 0.3,
             stake, odds, result
@@ -684,7 +741,7 @@ const ABP = (() => {
     normalise, uid,
     money, moneyShort, pct, pctSigned, shortDate, longDate,
     isoDate, today, weekStart, addWeeks, weekRange,
-    isSettled, isLive, returned, profitOf, turnoverOf, legBucket, typeOf,
+    isSettled, isLive, returned, profitOf, turnoverOf, legBucket, typeOf, sportsOf, sportBreakdown,
     summarise, summariseBy, groupBy, bestStreak, longestRun, formRun, applyFilters,
     weeklyIn, bankSeries, WEEKLY_IN,
     turnFor, turnIndex, upcomingTurns, rotaOrigin, rotaOrder, weekOffsetFor, weeksBetween,

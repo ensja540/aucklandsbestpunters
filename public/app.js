@@ -48,6 +48,9 @@
 
   const chip = pid => `${silk(pid, 14)}<span>${esc(firstName(member(pid)))}</span>`;
 
+  // "NRL + NBA" for a ticket that strayed across codes.
+  const sportLabel = b => M.sportsOf(b).join(' + ');
+
   /* ── selection ──────────────────────────────────────────── */
 
   const allBets = () => M.liveBets();
@@ -132,7 +135,7 @@
           const cells = r.form.map(b => {
             const cls = b.result === 'win' ? 'form-cell--win' : b.result === 'void' ? 'form-cell--void' : '';
             const style = b.result === 'win' ? ` style="background:${colorOf(r.m.id)}"` : '';
-            return `<i class="form-cell ${cls}"${style} title="${M.shortDate(b.date)} ${esc(b.sport)} ${M.money(M.profitOf(b), { sign: true })}"></i>`;
+            return `<i class="form-cell ${cls}"${style} title="${M.shortDate(b.date)} ${esc(sportLabel(b))} ${M.money(M.profitOf(b), { sign: true })}"></i>`;
           }).join('');
           return `<tr class="ladder-row${on ? ' is-picked' : ''}" data-pick="${r.m.id}" tabindex="0">
             <td class="pos">${r.bets ? i + 1 : '—'}</td>
@@ -447,14 +450,29 @@
 
   /* ── profit by sport ────────────────────────────────────── */
 
+  // The tail rows are already split across codes, so fold the split numbers
+  // rather than re-summarising the tickets (which would double-count mixed ones).
   function foldRest(rows, label) {
-    const list = rows.flatMap(r => r.list);
-    return { key: label, ...M.summarise(list), list };
+    const acc = { key: label, settled: 0, wins: 0, losses: 0, voids: 0, mixed: 0,
+                  staked: 0, turnover: 0, profit: 0, returned: 0, oddsSum: 0, oddsN: 0, list: [] };
+    rows.forEach(r => {
+      ['settled', 'wins', 'losses', 'voids', 'mixed', 'staked', 'turnover', 'profit', 'returned', 'oddsSum', 'oddsN']
+        .forEach(k => (acc[k] += r[k] || 0));
+      acc.list.push(...r.list);
+    });
+    acc.roi = acc.turnover > 0 ? acc.profit / acc.turnover : null;
+    acc.strike = acc.wins + acc.losses > 0 ? acc.wins / (acc.wins + acc.losses) : null;
+    acc.avgOdds = acc.oddsN > 0 ? acc.oddsSum / acc.oddsN : null;
+    return acc;
   }
 
   function renderSport(bets) {
-    const rows = M.summariseBy(bets.filter(M.isSettled), b => b.sport).sort((a, b) => b.profit - a.profit);
+    const rows = M.sportBreakdown(bets).sort((a, b) => b.profit - a.profit);
     const shown = rows.length > 10 ? [...rows.slice(0, 9), foldRest(rows.slice(9), 'Other sports')] : rows;
+    const mixed = bets.filter(b => M.isSettled(b) && M.sportsOf(b).length > 1).length;
+    $('[data-chart="sport"] .card-sub').textContent = mixed
+      ? `Where the money comes from. ${mixed} mixed ticket${mixed === 1 ? '' : 's'} split across their codes.`
+      : 'Where the club\'s money actually comes from.';
 
     polarityLegend('#sportLegend');
 
@@ -483,7 +501,7 @@
     $('#sportLedger').innerHTML = rows.length ? `
       <table>
         <thead><tr>
-          <th>Sport</th><th>Bets</th><th>Won</th><th>Strike</th><th>Avg odds</th>
+          <th>Sport</th><th>Tickets</th><th>Won</th><th>Strike</th><th>Avg odds</th>
           <th>Turnover</th><th>Profit</th><th>ROI</th><th>Best at it</th>
         </tr></thead>
         <tbody>${rows.map(r => {
@@ -602,10 +620,12 @@
     const rows = standingsRows(bets).filter(r => r.bets > 0);
     if (!rows.length) { $('#bookTable').innerHTML = '<p class="plot-empty">No bets in this slice.</p>'; return; }
 
-    const ticket = b => b ? `${M.money(M.profitOf(b), { sign: true })} <span class="pill">${esc(b.sport)} @ ${b.odds.toFixed(2)}</span>` : '—';
+    const ticket = b => b ? `${M.money(M.profitOf(b), { sign: true })} <span class="pill">${esc(sportLabel(b))} @ ${b.odds.toFixed(2)}</span>` : '—';
     const favourite = mine => {
-      const top = M.summariseBy(mine, b => b.sport).sort((a, b) => b.list.length - a.list.length)[0];
-      return top ? `${esc(top.key)} <span class="muted-note">${top.list.length}</span>` : '—';
+      const counts = new Map();
+      mine.forEach(b => M.sportsOf(b).forEach(s => counts.set(s, (counts.get(s) || 0) + 1)));
+      const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+      return top ? `${esc(top[0])} <span class="muted-note">${top[1]}</span>` : '—';
     };
 
     $('#bookTable').innerHTML = `
@@ -649,7 +669,7 @@
       return `<span class="tick">
         ${silk(b.punter, 12)}
         <b>${esc(firstName(member(b.punter)))}</b>
-        <span class="tick-what">${esc(b.sport)} ${kind}</span>
+        <span class="tick-what">${esc(sportLabel(b))} ${kind}</span>
         <span class="${p >= 0 ? 'up' : 'down'}">${M.money(p, { sign: true })}</span>
       </span>`;
     };
@@ -705,7 +725,7 @@
 
     box.style.setProperty('--cel-hue', hue);
     $('#celSilk').innerHTML = silk(bet.punter, 48);
-    $('#celEyebrow').textContent = `${bet.legs}-leg ${bet.sgm ? 'same-game multi' : 'multi'} · ${bet.sport}`;
+    $('#celEyebrow').textContent = `${bet.legs}-leg ${bet.sgm ? 'same-game multi' : 'multi'} · ${sportLabel(bet)}`;
     $('#celAmount').textContent = M.money(M.returned(bet));
     $('#celTitle').textContent = `${who.name} got there`;
     $('#celTicket').textContent =
@@ -770,7 +790,7 @@
           <tr>
             <td>${M.shortDate(b.date)}</td>
             <td><span class="cell-who">${chip(b.punter)}</span></td>
-            <td>${esc(b.sport)} · ${b.legs === 1 ? 'single' : b.legs + ' legs'}
+            <td>${esc(sportLabel(b))} · ${b.legs === 1 ? 'single' : b.legs + ' legs'}
               ${b.event ? `<br><span class="muted-note">${esc(b.event)}</span>` : ''}</td>
             <td>${M.money(b.stake)}</td>
             <td>${b.odds.toFixed(2)}</td>
@@ -831,7 +851,7 @@
           <tr>
             <td title="${M.longDate(b.date)}">${M.shortDate(b.date)}</td>
             <td><span class="cell-who">${chip(b.punter)}</span></td>
-            <td>${esc(b.sport)}${b.event ? `<br><span class="muted-note">${esc(b.event)}</span>` : ''}</td>
+            <td>${esc(sportLabel(b))}${b.event ? `<br><span class="muted-note">${esc(b.event)}</span>` : ''}</td>
             <td>${kind(b)}</td>
             <td>${M.money(b.stake)}</td>
             <td>${b.odds.toFixed(2)}</td>
@@ -886,7 +906,7 @@
       members().map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('');
     pSel.value = filters.punter;
 
-    const used = [...new Set(allBets().map(b => b.sport))].sort();
+    const used = [...new Set(allBets().flatMap(M.sportsOf))].sort();
     const sSel = $('#fSport');
     sSel.innerHTML = '<option value="all">All sports</option>' +
       used.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
@@ -990,6 +1010,28 @@
 
   /* ── bet form ───────────────────────────────────────────── */
 
+  /* ── the sport chips ────────────────────────────────────── */
+
+  let formSports = [];
+
+  function renderChips() {
+    $('#chipList').innerHTML = formSports.map(s =>
+      `<span class="chip">${esc(s)}<button type="button" class="chip-x" data-drop-sport="${esc(s)}" aria-label="Remove ${esc(s)}">×</button></span>`
+    ).join('');
+    $('#bSport').placeholder = formSports.length ? 'Another code…' : 'NRL, then Enter';
+  }
+
+  function addSport(raw) {
+    const name = (raw || '').trim();
+    if (!name) return;
+    const match = [...new Set([...allBets().flatMap(M.sportsOf), ...M.SPORTS])]
+      .find(s => s.toLowerCase() === name.toLowerCase());
+    const value = match || name;
+    if (!formSports.some(s => s.toLowerCase() === value.toLowerCase())) formSports.push(value);
+    $('#bSport').value = '';
+    renderChips();
+  }
+
   let priceMode = 'odds';
 
   function formOdds() {
@@ -1029,6 +1071,8 @@
     $('#bId').value = '';
     $('#bDate').value = M.today();
     $('#bSport').value = '';
+    formSports = [];
+    renderChips();
     $('#bEvent').value = '';
     $('#bLegs').value = 1;
     $('#bStake').value = 10;
@@ -1053,7 +1097,9 @@
     $('#bId').value = b.id;
     $('#bPunter').value = b.punter;
     $('#bDate').value = b.date;
-    $('#bSport').value = b.sport;
+    $('#bSport').value = '';
+    formSports = [...M.sportsOf(b)];
+    renderChips();
     $('#bEvent').value = b.event;
     $('#bLegs').value = b.legs;
     $('#bStake').value = b.stake;
@@ -1206,13 +1252,28 @@
       if (btn) setPriceMode(btn.dataset.price);
     });
 
+    // sport chips: Enter or comma commits, × removes
+    $('#bSport').addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addSport(e.target.value); }
+      if (e.key === 'Backspace' && !e.target.value && formSports.length) { formSports.pop(); renderChips(); }
+    });
+    $('#bSport').addEventListener('change', e => addSport(e.target.value));   // datalist pick
+    $('#bSport').addEventListener('blur', e => addSport(e.target.value));
+    $('#chipList').addEventListener('click', e => {
+      const x = e.target.closest('[data-drop-sport]');
+      if (!x) return;
+      formSports = formSports.filter(s => s !== x.dataset.dropSport);
+      renderChips();
+    });
+
     $('#betForm').addEventListener('submit', e => {
       e.preventDefault();
+      addSport($('#bSport').value);          // catch a code typed but not entered
       const legs = Number($('#bLegs').value) || 1;
       const payload = {
         date: $('#bDate').value,
         punter: $('#bPunter').value,
-        sport: $('#bSport').value.trim() || 'Other',
+        sports: formSports.length ? formSports : ['Other'],
         event: $('#bEvent').value.trim(),
         legs,
         sgm: $('#bSgm').checked && legs > 1,

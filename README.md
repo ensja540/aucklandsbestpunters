@@ -92,6 +92,10 @@ it just saves locally on each device.
 - When a bet settles, **Waiting on a result** lists it with the payout prefilled.
   Change the number to whatever actually landed and hit *Collected* — the odds are
   recalculated from the real payout, so partial cash-outs and bonus boosts stay honest.
+- **A ticket can cover several codes.** Type each sport and press Enter to add it
+  as a chip. A mixed multi splits its stake and its result evenly across the codes
+  on it, so *profit by sport* still adds up to the club total while the ticket
+  counts once against each sport's strike rate.
 - **Odds are decimal** (2.50, not 6/4 or −150).
 - **Legs** is the number of selections on the ticket: 1 is a single, 4 is a four-leg multi.
   Tick *same-game multi* for an SGM.

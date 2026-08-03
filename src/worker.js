@@ -78,7 +78,9 @@ function clean(b) {
     id: String(b.id).slice(0, 40),
     date: String(b.date || '').slice(0, 10),
     punter: String(b.punter || '').slice(0, 24),
-    sport: String(b.sport || 'Other').slice(0, 40),
+    sports: (Array.isArray(b.sports) && b.sports.length ? b.sports : [b.sport || 'Other'])
+      .slice(0, 8).map(s => String(s).slice(0, 40)),
+    sport: String((Array.isArray(b.sports) && b.sports[0]) || b.sport || 'Other').slice(0, 40),
     event: String(b.event || '').slice(0, 80),
     legs: Math.max(1, Math.min(30, Math.round(Number(b.legs) || 1))),
     sgm: !!b.sgm,
