@@ -24,25 +24,47 @@ wrangler.jsonc   Worker config
 
 ## Run it locally
 
-Open `public/index.html` in a browser — it works straight off the disk, saving to
-that browser's local storage. To run it the way it runs in production:
+Open `public/index.html` in a browser. It works straight off the disk, saving to
+that browser's local storage — no server, no build.
 
-```bash
-npx wrangler dev
-```
+> **Note on this machine:** it's Windows on ARM64, and Cloudflare's local runtime
+> (`workerd`) has no ARM64 Windows build, so `wrangler dev` / `wrangler deploy`
+> can't run here. Deploys happen in CI instead (below). Everything except the
+> `/api/state` sync can be developed against the local file.
 
 ## Deploy to Cloudflare
 
-```bash
-npx wrangler kv namespace create LEDGER   # paste the id into wrangler.jsonc
-npx wrangler secret put CLUB_CODE         # the shared code you and your mate type once
-npx wrangler deploy
-```
+Pushing to `main` deploys, via `.github/workflows/deploy.yml`. It needs two repo
+secrets — **GitHub → Settings → Secrets and variables → Actions**:
 
-Then in the Cloudflare dashboard: **Workers & Pages → aucklandsbestpunters →
-Settings → Domains & Routes → Add custom domain → `aucklandsbestpunters.co.nz`**
-(and `www.` if you want it). Cloudflare issues the certificate itself, so nothing
-else to configure.
+| Secret | Where it comes from |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → Create Token → **Edit Cloudflare Workers** template |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → Workers & Pages → Account ID in the right sidebar |
+
+The alternative, if you'd rather not hold a token: Cloudflare dashboard →
+**Workers & Pages → Create → Import a repository**, point it at
+`ensja540/aucklandsbestpunters`, leave the build command empty and the deploy
+command as `npx wrangler deploy`. Cloudflare then builds on every push itself.
+
+### The custom domain
+
+**Workers & Pages → aucklandsbestpunters → Settings → Domains & Routes → Add
+custom domain → `aucklandsbestpunters.co.nz`** (add `www.` too if you want it).
+Cloudflare issues the certificate; nothing else to configure. The domain needs to
+be on the same Cloudflare account — if it's registered elsewhere, add the site to
+Cloudflare first and point the registrar at Cloudflare's nameservers.
+
+### Turning on the shared ledger
+
+Out of the box each browser keeps its own copy. To share one ledger:
+
+1. **Storage & Databases → KV → Create namespace**, call it `LEDGER`, copy the id.
+2. Uncomment the `kv_namespaces` block in `wrangler.jsonc` and paste the id in.
+3. Optional lock: Worker → **Settings → Variables and Secrets → Add secret**
+   `CLUB_CODE`. The site asks each device for it once.
+
+Push, and both phones are on the same ledger.
 
 ### How the shared ledger works
 

@@ -1,0 +1,14 @@
+{
+  "name": "aucklandsbestpunters",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Auckland's Best Punters — two-punter club ledger",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0"
+  }
+}

@@ -4,23 +4,25 @@
   "main": "src/worker.js",
   "compatibility_date": "2025-09-01",
 
-  // Static site lives in /public and is served by the Worker.
+  // The site lives in /public and is served by the Worker.
   // Unmatched paths (like /api/state) fall through to src/worker.js.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"
   },
 
-  // Shared ledger storage. Create it once, then paste the id here:
-  //   npx wrangler kv namespace create LEDGER
-  "kv_namespaces": [
-    {
-      "binding": "LEDGER",
-      "id": "PASTE_KV_NAMESPACE_ID_HERE"
-    }
-  ],
-
-  // Club code is a secret, not a var:
-  //   npx wrangler secret put CLUB_CODE
   "observability": { "enabled": true }
+
+  // ── Shared ledger (optional) ────────────────────────────────────────────
+  // Without this, each browser keeps its own copy. To share one ledger
+  // between both punters:
+  //   1. Cloudflare dashboard → Storage & Databases → KV → Create namespace
+  //      "LEDGER", then copy its id.
+  //   2. Uncomment the block below and paste the id in.
+  //   3. Optional lock: Worker → Settings → Variables → add secret
+  //      CLUB_CODE. The site asks for it once per device.
+  //
+  // "kv_namespaces": [
+  //   { "binding": "LEDGER", "id": "PASTE_KV_NAMESPACE_ID_HERE" }
+  // ]
 }
