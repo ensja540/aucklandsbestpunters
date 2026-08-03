@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aucklandsbestpunters",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+
+  // Static site lives in /public and is served by the Worker.
+  // Unmatched paths (like /api/state) fall through to src/worker.js.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  // Shared ledger storage. Create it once, then paste the id here:
+  //   npx wrangler kv namespace create LEDGER
+  "kv_namespaces": [
+    {
+      "binding": "LEDGER",
+      "id": "PASTE_KV_NAMESPACE_ID_HERE"
+    }
+  ],
+
+  // Club code is a secret, not a var:
+  //   npx wrangler secret put CLUB_CODE
+  "observability": { "enabled": true }
+}
