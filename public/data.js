@@ -32,14 +32,16 @@ const ABP = (() => {
       goals: [
         { id: 'g1', emoji: '🌴', name: 'Fiji', target: 4500 }
       ],
-      // The batting order. Two members put the club's money on each week and the
-      // pointer walks two places along, so with nine of us the pairs shift every
-      // week: Jack & James, Rory & Kevin, … Dylan & Jack, James & Rory, and on.
-      rota: ['m8', 'm3', 'm7', 'm6', 'm4', 'm9', 'm2', 'm1', 'm5'],
+      // The batting order, read back off the ledger itself: every week the
+      // pointer walks two places along, so with nine of us the pairs shift
+      // every week and the whole thing comes round every nine.
+      // Dylan & Jack, James & Kevin, Rory & Sam, Michael & Matt, David & Dylan,
+      // Jack & James, Kevin & Rory, Sam & Michael, Matt & David, then back.
+      rota: ['m5', 'm8', 'm3', 'm6', 'm7', 'm4', 'm9', 'm1', 'm2'],
       rotaSize: 2,
-      // Anchor: the week the order starts back at the top. David & Matt had the
-      // week of 3 Aug 2026, which puts Dylan & Jack up next.
-      rotaStart: '2026-07-13',
+      // Anchor: week of 1 Jun 2026, the club's first week on the ledger, which
+      // is where Dylan & Jack come up. Verified against all nine weeks bet so far.
+      rotaStart: '2026-06-01',
       patterns: false,
       motion: true
     },
