@@ -817,7 +817,7 @@
               ${b.event ? `<br><span class="muted-note">${esc(b.event)}</span>` : ''}</td>
             <td>${M.money(b.stake)}</td>
             <td>${b.odds.toFixed(2)}</td>
-            <td><input class="paid-input" type="number" min="0" step="0.5"
+            <td><input class="paid-input" type="number" min="0" step="any" inputmode="decimal"
                   value="${(b.stake * b.odds).toFixed(2)}" data-paid="${b.id}" aria-label="What it paid"></td>
             <td>
               <button class="rowbtn rowbtn--win" data-cash="${b.id}">Collected</button>
@@ -1066,15 +1066,20 @@
     return Number($('#bOdds').value) || 0;
   }
 
+  // Live off whatever is typed — no rounding, no minimum, no "enter a valid value".
   function updatePotential() {
     const stake = Number($('#bStake').value) || 0;
     const odds = formOdds();
+    const box = $('#bPotential');
+
+    if (!(stake > 0) || !(odds > 1)) { box.innerHTML = ''; return; }
+
     const ret = stake * odds;
-    $('#bPotential').textContent = stake && odds >= 1.01
-      ? (priceMode === 'payout'
-          ? `That's ${odds.toFixed(2)} · profit ${M.money(ret - stake, { sign: true })}`
-          : `Returns ${M.money(ret)} · profit ${M.money(ret - stake, { sign: true })}`)
-      : '';
+    const profit = ret - stake;
+    box.innerHTML =
+      `<span class="pot-line">${M.money(stake)} at ${odds.toFixed(2)}</span>` +
+      `<span class="pot-line">Returns <b>${M.money(ret)}</b></span>` +
+      `<span class="pot-line">Profit <b class="${profit >= 0 ? 'up' : 'down'}">${M.money(profit, { sign: true })}</b></span>`;
   }
 
   function setPriceMode(mode) {
