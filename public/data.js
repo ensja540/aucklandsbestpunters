@@ -389,7 +389,8 @@ const ABP = (() => {
       legs: Math.max(1, Math.round(Number(b.legs) || 1)),   // no upper limit — go nuts
       sgm: !!b.sgm,
       stake: Math.round((Number(b.stake) || 0) * 100) / 100,
-      odds: Math.round((Number(b.odds) || 1) * 100) / 100,
+      // 4dp, so a payout typed in as dollars survives the trip back to odds
+      odds: Math.round((Number(b.odds) || 1) * 10000) / 10000,
       result: ['win', 'loss', 'void', 'pending'].includes(b.result) ? b.result : 'pending',
       updatedAt: b.updatedAt || Date.now(),
       deleted: !!b.deleted

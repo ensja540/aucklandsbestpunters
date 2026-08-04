@@ -87,8 +87,10 @@ it just saves locally on each device.
 
 ## Entering bets
 
-- **Place a bet** takes either decimal odds *or* what the ticket pays if it wins —
-  toggle between them. Entering the payout works out the odds for you.
+- **Odds, returns and profit are three views of one number.** Type into whichever
+  you know — odds, what it pays, or what you'd win — and the other two fill
+  themselves in. Change the stake afterwards and whichever you touched last holds
+  while the rest re-work. Any amount is accepted; nothing is rounded to 50c.
 - When a bet settles, **Waiting on a result** lists it with the payout prefilled.
   Change the number to whatever actually landed and hit *Collected* — the odds are
   recalculated from the real payout, so partial cash-outs and bonus boosts stay honest.

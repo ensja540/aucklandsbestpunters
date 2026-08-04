@@ -837,7 +837,7 @@
     if (!bet || !input) return;
     const paid = Number(input.value);
     if (!(paid > 0)) { toast('Enter what it paid'); return; }
-    const odds = Math.max(1.01, Math.round((paid / bet.stake) * 100) / 100);
+    const odds = Math.max(0.0001, Math.round((paid / bet.stake) * 10000) / 10000);
     const saved = M.updateBet(id, { result: 'win', odds });
     render();
     if (!celebrate(saved)) toast(`Collected ${M.money(paid)}`);
@@ -1055,20 +1055,47 @@
     renderChips();
   }
 
-  let priceMode = 'odds';
+  /* ── price: odds, returns and profit are three views of one number ──
+     Type into whichever you know and the other two follow. Whichever you
+     touched last stays put when the stake changes. */
 
-  function formOdds() {
-    const stake = Number($('#bStake').value) || 0;
-    if (priceMode === 'payout') {
-      const pays = Number($('#bReturn').value) || 0;
-      return stake > 0 ? Math.round((pays / stake) * 100) / 100 : 0;
+  let priceAnchor = 'odds';
+
+  const numOf = sel => Number($(sel).value);
+  const formOdds = () => numOf('#bOdds');
+
+  function setIf(sel, value, write) {
+    if (write) $(sel).value = value;
+  }
+
+  function recalcPrice(source) {
+    if (source && source !== 'stake') priceAnchor = source;
+    const anchor = !source || source === 'stake' ? priceAnchor : source;
+
+    const stake = numOf('#bStake');
+    let odds = numOf('#bOdds');
+
+    if (anchor === 'return' && stake > 0) {
+      const ret = numOf('#bReturn');
+      if (ret > 0) odds = ret / stake;
+    } else if (anchor === 'profit' && stake > 0) {
+      const profit = numOf('#bProfit');
+      if (profit + stake > 0) odds = (profit + stake) / stake;
     }
-    return Number($('#bOdds').value) || 0;
+
+    if (!(stake > 0) || !(odds > 0)) { $('#bPotential').innerHTML = ''; return; }
+
+    const ret = stake * odds;
+    setIf('#bOdds', +odds.toFixed(4), source !== 'odds');
+    setIf('#bReturn', ret.toFixed(2), source !== 'return');
+    setIf('#bProfit', (ret - stake).toFixed(2), source !== 'profit');
+    updatePotential();
   }
 
   // Live off whatever is typed — no rounding, no minimum, no "enter a valid value".
+  // Live off whatever is typed — no rounding, no minimum, no "enter a valid value".
   function updatePotential() {
-    const stake = Number($('#bStake').value) || 0;
+    const stake = numOf('#bStake');
     const odds = formOdds();
     const box = $('#bPotential');
 
@@ -1082,15 +1109,9 @@
       `<span class="pot-line">Profit <b class="${profit >= 0 ? 'up' : 'down'}">${M.money(profit, { sign: true })}</b></span>`;
   }
 
-  function setPriceMode(mode) {
-    priceMode = mode;
-    $$('#bPriceMode .seg-btn').forEach(b => b.classList.toggle('is-on', b.dataset.price === mode));
-    $('#oddsField').hidden = mode !== 'odds';
-    $('#payField').hidden = mode !== 'payout';
-    const stake = Number($('#bStake').value) || 0;
-    if (mode === 'payout') $('#bReturn').value = (stake * (Number($('#bOdds').value) || 0)).toFixed(2);
-    else if (stake > 0) $('#bOdds').value = ((Number($('#bReturn').value) || 0) / stake).toFixed(2);
-    updatePotential();
+  function setPriceMode() {          // reset the form back to odds-led
+    priceAnchor = 'odds';
+    recalcPrice('odds');
   }
 
   function resetForm() {
@@ -1273,12 +1294,10 @@
       syncResultButtons();
     });
 
-    ['bStake', 'bOdds', 'bReturn'].forEach(id => $('#' + id).addEventListener('input', updatePotential));
-
-    $('#bPriceMode').addEventListener('click', e => {
-      const btn = e.target.closest('[data-price]');
-      if (btn) setPriceMode(btn.dataset.price);
-    });
+    // whichever of the four you type into, the rest follow
+    const priceFields = { bStake: 'stake', bOdds: 'odds', bReturn: 'return', bProfit: 'profit' };
+    Object.entries(priceFields).forEach(([id, key]) =>
+      $('#' + id).addEventListener('input', () => recalcPrice(key)));
 
     // sport chips: Enter or comma commits, × removes
     $('#bSport').addEventListener('keydown', e => {

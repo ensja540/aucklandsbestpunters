@@ -85,7 +85,7 @@ function clean(b) {
     legs: Math.max(1, Math.round(Number(b.legs) || 1)),
     sgm: !!b.sgm,
     stake: round2(b.stake),
-    odds: round2(b.odds),
+    odds: Math.round((Number(b.odds) || 0) * 10000) / 10000,
     result: ['win', 'loss', 'void', 'pending'].includes(b.result) ? b.result : 'pending',
     updatedAt: Number(b.updatedAt) || Date.now(),
     deleted: !!b.deleted

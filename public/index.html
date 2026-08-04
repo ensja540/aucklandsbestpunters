@@ -287,20 +287,17 @@
           <label for="bStake">Stake</label>
           <input type="number" id="bStake" min="0" step="any" inputmode="decimal" value="10" required>
         </div>
-        <div class="field field--sm" id="oddsField">
+        <div class="field field--sm">
           <label for="bOdds">Odds</label>
           <input type="number" id="bOdds" min="1" step="any" inputmode="decimal" value="2.00">
         </div>
-        <div class="field field--sm" id="payField" hidden>
-          <label for="bReturn">Pays if it wins</label>
-          <input type="number" id="bReturn" min="0" step="any" inputmode="decimal" value="20">
+        <div class="field field--sm">
+          <label for="bReturn">Returns</label>
+          <input type="number" id="bReturn" min="0" step="any" inputmode="decimal" value="20.00">
         </div>
-        <div class="field field--price">
-          <label>Price entered as</label>
-          <div class="seg" id="bPriceMode" role="group" aria-label="Price entered as">
-            <button type="button" class="seg-btn is-on" data-price="odds">Odds</button>
-            <button type="button" class="seg-btn" data-price="payout">Payout</button>
-          </div>
+        <div class="field field--sm">
+          <label for="bProfit">Profit</label>
+          <input type="number" id="bProfit" min="0" step="any" inputmode="decimal" value="10.00">
         </div>
         <div class="field field--result">
           <label>Result</label>
