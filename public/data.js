@@ -136,7 +136,11 @@ const ABP = (() => {
   // Void bets return the stake, so they are neither profit nor turnover.
   function profitOf(b) { return isSettled(b) ? returned(b) - b.stake : 0; }
   function turnoverOf(b) { return b.result === 'void' ? 0 : b.stake; }
-  function legBucket(b) { return b.legs >= 6 ? '6+' : String(b.legs); }
+  // Every leg count stands on its own until they get silly, so a 9-leg roughie
+  // doesn't get buried in with the 6-leggers.
+  const LEG_FOLD = 12;
+  function legBucket(b) { return b.legs >= LEG_FOLD ? LEG_FOLD + '+' : String(b.legs); }
+  function legBucketOrder(key) { return parseInt(key, 10); }
   function typeOf(b) { return b.legs > 1 ? (b.sgm ? 'sgm' : 'multi') : 'single'; }
 
   /* ── aggregate ───────────────────────────────────────────── */
@@ -382,7 +386,7 @@ const ABP = (() => {
       sports,
       sport: sports[0],
       event: (b.event || '').trim(),
-      legs: Math.max(1, Math.round(Number(b.legs) || 1)),
+      legs: Math.max(1, Math.round(Number(b.legs) || 1)),   // no upper limit — go nuts
       sgm: !!b.sgm,
       stake: Math.round((Number(b.stake) || 0) * 100) / 100,
       odds: Math.round((Number(b.odds) || 1) * 100) / 100,
@@ -741,7 +745,7 @@ const ABP = (() => {
     normalise, uid,
     money, moneyShort, pct, pctSigned, shortDate, longDate,
     isoDate, today, weekStart, addWeeks, weekRange,
-    isSettled, isLive, returned, profitOf, turnoverOf, legBucket, typeOf, sportsOf, sportBreakdown,
+    isSettled, isLive, returned, profitOf, turnoverOf, legBucket, legBucketOrder, typeOf, sportsOf, sportBreakdown,
     summarise, summariseBy, groupBy, bestStreak, longestRun, formRun, applyFilters,
     weeklyIn, bankSeries, WEEKLY_IN,
     turnFor, turnIndex, upcomingTurns, rotaOrigin, rotaOrder, weekOffsetFor, weeksBetween,

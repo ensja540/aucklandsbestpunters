@@ -548,9 +548,11 @@
   /* ── profit by multi length ─────────────────────────────── */
 
   function renderLegs(bets) {
-    const buckets = ['1', '2', '3', '4', '5', '6+'];
-    const map = new Map(M.summariseBy(bets.filter(M.isSettled), M.legBucket).map(r => [r.key, r]));
-    const cols = buckets.map(k => ({ k, r: map.get(k) })).filter(x => x.r && x.r.settled > 0);
+    // Columns follow whatever's actually been bet, however long the ticket got.
+    const cols = M.summariseBy(bets.filter(M.isSettled), M.legBucket)
+      .filter(r => r.settled > 0)
+      .sort((a, b) => M.legBucketOrder(a.key) - M.legBucketOrder(b.key))
+      .map(r => ({ k: r.key, r }));
 
     polarityLegend('#legsLegend');
 
@@ -559,7 +561,7 @@
         label: k === '1' ? 'Single' : k + ' legs',
         sub: r.settled + ' bet' + (r.settled === 1 ? '' : 's'),
         value: r.profit,
-        tipTitle: k === '1' ? 'Singles' : k + '-leg multis',
+        tipTitle: k === '1' ? 'Singles' : k.endsWith('+') ? `${k} legs` : `${k}-leg multis`,
         tip: Charts.tipRow(r.profit >= 0 ? Charts.css('--pos') : Charts.css('--neg'), 'Profit', M.money(r.profit, { sign: true })) +
              Charts.tipRow(null, 'ROI', M.pctSigned(r.roi)) +
              Charts.tipRow(null, 'Strike rate', M.pct(r.strike, 0)) +

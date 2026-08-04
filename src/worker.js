@@ -82,7 +82,7 @@ function clean(b) {
       .slice(0, 8).map(s => String(s).slice(0, 40)),
     sport: String((Array.isArray(b.sports) && b.sports[0]) || b.sport || 'Other').slice(0, 40),
     event: String(b.event || '').slice(0, 80),
-    legs: Math.max(1, Math.min(30, Math.round(Number(b.legs) || 1))),
+    legs: Math.max(1, Math.round(Number(b.legs) || 1)),
     sgm: !!b.sgm,
     stake: round2(b.stake),
     odds: round2(b.odds),
