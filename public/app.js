@@ -209,6 +209,93 @@
       </li>`).join('') || '<li class="muted-note">No rota set.</li>';
   }
 
+  /* ── last week's results ────────────────────────────────── */
+
+  let recapWeek = null;
+
+  const betWeeks = () =>
+    [...new Set(allBets().map(b => M.weekStart(b.date)))].sort();
+
+  function renderRecap() {
+    const weeks = betWeeks();
+    const host = $('#recap');
+    if (!weeks.length) {
+      $('#recapSub').textContent = '';
+      host.innerHTML = '<p class="plot-empty">No weeks on the books yet.</p>';
+      $('#recapPrev').disabled = $('#recapNext').disabled = true;
+      return;
+    }
+
+    // Default to the last week that's actually finished, not the one in progress.
+    const thisWeek = M.weekStart(M.today());
+    if (!recapWeek || !weeks.includes(recapWeek)) {
+      const done = weeks.filter(w => w < thisWeek);
+      recapWeek = done.length ? done[done.length - 1] : weeks[weeks.length - 1];
+    }
+
+    const i = weeks.indexOf(recapWeek);
+    $('#recapPrev').disabled = i <= 0;
+    $('#recapNext').disabled = i >= weeks.length - 1;
+
+    const week = allBets().filter(b => M.weekStart(b.date) === recapWeek);
+    const s = M.summarise(week);
+    const turn = M.turnFor(recapWeek);
+    const isThis = recapWeek === thisWeek;
+
+    $('#recapTitle').textContent = isThis ? 'This week' : recapWeek === M.addWeeks(thisWeek, -1) ? 'Last week' : 'Week of ' + M.shortDate(recapWeek);
+    $('#recapSub').textContent =
+      `${M.longDate(recapWeek).replace(/^\w+, /, '')} · ` +
+      (turn.ids.length ? turn.ids.map(id => firstName(member(id))).join(' & ') + ' were up' : 'no one rostered');
+
+    const outcome = b => ({
+      win: '<span class="pill pill--win">Won</span>',
+      part: '<span class="pill pill--part">Part</span>',
+      loss: '<span class="pill pill--loss">Lost</span>',
+      void: '<span class="pill">Void</span>',
+      pending: '<span class="pill pill--pending">Running</span>'
+    })[b.result];
+
+    const record = [
+      s.wins ? `${s.wins} won` : null,
+      s.losses ? `${s.losses} lost` : null,
+      s.voids ? `${s.voids} void` : null,
+      s.pending ? `${s.pending} still running` : null
+    ].filter(Boolean).join(' · ');
+
+    host.innerHTML = `
+      <div class="recap-top">
+        <div class="recap-fig">
+          <dt>The week</dt>
+          <dd class="${s.profit >= 0 ? 'up' : 'down'}">${M.money(s.profit, { sign: true })}</dd>
+          <p>${record || 'nothing settled'}</p>
+        </div>
+        <div class="recap-fig"><dt>Staked</dt><dd>${M.money(s.staked)}</dd><p>${s.bets} ticket${s.bets === 1 ? '' : 's'}</p></div>
+        <div class="recap-fig"><dt>Collected</dt><dd>${M.money(week.reduce((t, b) => t + M.returned(b), 0))}</dd>
+          <p>${s.strike === null ? '—' : M.pct(s.strike, 0) + ' strike'}</p></div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Member</th><th>Bet</th><th>Stake</th><th>Odds</th><th>Back</th><th>Result</th></tr></thead>
+          <tbody>${week
+            .slice()
+            .sort((a, b) => M.profitOf(b) - M.profitOf(a) || a.date.localeCompare(b.date))
+            .map(b => `
+              <tr>
+                <td><span class="cell-who">${chip(b.punter)}</span></td>
+                <td>${esc(sportLabel(b))} · ${b.legs === 1 ? 'single' : b.legs + ' legs'}
+                  ${b.event ? `<br><span class="muted-note">${esc(b.event)}</span>` : ''}</td>
+                <td>${M.money(b.stake)}</td>
+                <td>${b.odds.toFixed(2)}</td>
+                <td class="${M.isLive(b) ? '' : M.profitOf(b) >= 0 ? 'up' : 'down'}">${
+                  M.isLive(b) ? `<span class="muted-note">${M.money(b.stake * b.odds)} to come</span>`
+                              : M.money(M.returned(b)) + ` <span class="muted-note">${M.money(M.profitOf(b), { sign: true })}</span>`}</td>
+                <td>${outcome(b)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
   /* ── the club bank ──────────────────────────────────────── */
 
   function renderBank() {
@@ -803,11 +890,18 @@
   /* ── waiting on a result ────────────────────────────────── */
 
   function renderPending() {
-    const rows = allBets().filter(M.isLive)
+    // follows the member filter too, so "just my bets" means just yours
+    const rows = allBets()
+      .filter(M.isLive)
+      .filter(b => filters.punter === 'all' || b.punter === filters.punter)
       .sort((a, b) => a.date.localeCompare(b.date));
     const card = $('#pendingCard');
     card.hidden = rows.length === 0;
     if (!rows.length) return;
+
+    $('#pendingCard h2').textContent = filters.punter === 'all'
+      ? 'Waiting on a result'
+      : `Waiting on a result — ${firstName(member(filters.punter))}`;
 
     $('#pendingTable').innerHTML = `
       <table>
@@ -870,6 +964,11 @@
 
   function renderBets() {
     renderPending();
+
+    const pick = $('#betsMember');
+    pick.innerHTML = '<option value="all">Everyone</option>' +
+      members().map(m => `<option value="${m.id}">${esc(m.name)}${m.former ? ' (former)' : ''}</option>`).join('');
+    pick.value = filters.punter;
     const rows = scoped()
       .filter(b => betsFilter === 'all' || M.isLive(b))
       .sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt);
@@ -985,6 +1084,7 @@
     renderSigns();
 
     if (view === 'dashboard') {
+      renderRecap();
       renderLadder(bets);
       renderBank();
       renderGoals();
@@ -1318,6 +1418,25 @@
       card.querySelector('.tablewrap').hidden = !asTable;
       if (!asTable) Charts.refreshAll(card);
     }));
+
+    // step through past weeks
+    $('#recapPrev').addEventListener('click', () => {
+      const weeks = betWeeks();
+      const i = weeks.indexOf(recapWeek);
+      if (i > 0) { recapWeek = weeks[i - 1]; renderRecap(); }
+    });
+    $('#recapNext').addEventListener('click', () => {
+      const weeks = betWeeks();
+      const i = weeks.indexOf(recapWeek);
+      if (i >= 0 && i < weeks.length - 1) { recapWeek = weeks[i + 1]; renderRecap(); }
+    });
+
+    // same filter as the bar up top — change one, both move
+    $('#betsMember').addEventListener('change', e => {
+      filters.punter = e.target.value;
+      $('#fPunter').value = e.target.value;
+      render();
+    });
 
     $$('.seg-btn[data-bets]').forEach(btn => btn.addEventListener('click', () => {
       $$('.seg-btn[data-bets]').forEach(b => b.classList.toggle('is-on', b === btn));

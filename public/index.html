@@ -104,6 +104,22 @@
   <div class="view" id="view-dashboard">
     <div class="grid">
 
+      <section class="card card--wide" data-chart="recap">
+        <div class="card-head">
+          <div>
+            <h2 id="recapTitle">Last week</h2>
+            <p class="card-sub" id="recapSub"></p>
+          </div>
+          <div class="card-tools">
+            <div class="seg" role="group" aria-label="Change week">
+              <button class="seg-btn" id="recapPrev" title="Earlier week" aria-label="Earlier week">◀</button>
+              <button class="seg-btn" id="recapNext" title="Later week" aria-label="Later week">▶</button>
+            </div>
+          </div>
+        </div>
+        <div class="recap" id="recap"></div>
+      </section>
+
       <section class="card card--wide" data-chart="ladder">
         <div class="card-head">
           <div>
@@ -339,9 +355,15 @@
           <h2>Bet history</h2>
           <p class="card-sub" id="betsSub"></p>
         </div>
-        <div class="seg" role="group" aria-label="Show">
-          <button class="seg-btn is-on" data-bets="all">All</button>
-          <button class="seg-btn" data-bets="pending">Pending</button>
+        <div class="card-tools">
+          <div class="filter filter--inline">
+            <label for="betsMember">Member</label>
+            <select id="betsMember"></select>
+          </div>
+          <div class="seg" role="group" aria-label="Show">
+            <button class="seg-btn is-on" data-bets="all">All</button>
+            <button class="seg-btn" data-bets="pending">Pending</button>
+          </div>
         </div>
       </div>
       <div class="tablewrap" id="betsTable"></div>

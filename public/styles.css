@@ -325,6 +325,9 @@ select { cursor: pointer; }
   border-radius: var(--radius); padding: 20px 22px 22px; box-shadow: var(--shadow); min-width: 0;
 }
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.card-tools { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.filter--inline label { display: block; margin-bottom: 4px; }
+.filter--inline select { min-height: 32px; padding: 4px 8px; font-size: 13px; }
 .card-head h2 {
   font-family: var(--display); font-size: 17px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase;
@@ -357,6 +360,23 @@ select { cursor: pointer; }
 .bank-fig dd { margin: 4px 0 0; font-size: 24px; font-weight: 600; letter-spacing: -0.025em; }
 .bank-fig--lead dd { font-size: 34px; }
 .bank-fig p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+
+/* ─────────── last week's results ─────────── */
+
+.recap-top {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 2px; margin: 18px 0 2px;
+  background: var(--line-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); overflow: hidden;
+}
+.recap-fig { background: var(--surface-1); padding: 14px 16px; }
+.recap-fig dt {
+  font-family: var(--display); font-size: 10.5px; letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--muted);
+}
+.recap-fig dd { margin: 4px 0 0; font-size: 26px; font-weight: 600; letter-spacing: -0.025em; }
+.recap-fig p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+.seg-btn[disabled] { opacity: 0.35; cursor: default; }
 
 /* ─────────── aspirations ─────────── */
 
