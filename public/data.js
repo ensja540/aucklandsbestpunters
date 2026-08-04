@@ -21,14 +21,17 @@ const ABP = (() => {
     { id: 'm6', name: 'Kevin McCormick' },
     { id: 'm7', name: 'Rory O’Brien', title: 'Club president' },
     { id: 'm8', name: 'Jack Ensor' },
-    { id: 'm9', name: 'Michael Mayhew' }
+    { id: 'm9', name: 'Michael Mayhew' },
+    // Out of the club since May. His bets stay on the books; he isn't in the
+    // rota and doesn't tip into the weekly pool any more.
+    { id: 'm10', name: 'Aaron Riegen', former: true }
   ];
 
   const WEEKLY_IN = 10;          // what each member tips in every week
 
   const DEFAULT_STATE = () => ({
     club: {
-      members: FOUNDING.map((m, i) => ({ ...m, budget: WEEKLY_IN, slot: i })),
+      members: FOUNDING.map((m, i) => ({ ...m, budget: m.former ? 0 : WEEKLY_IN, slot: i })),
       goals: [
         { id: 'g1', emoji: '🌴', name: 'Fiji', target: 4500 }
       ],
@@ -619,6 +622,7 @@ const ABP = (() => {
       const monday = addWeeks(start, w);
       for (let mi = 0; mi < roster.length; mi++) {
         const member = roster[mi];
+        if (member.former) continue;              // long gone, not in the sample
         const pid = member.id;
         const prof = STYLES[mi % STYLES.length];
         const budget = member.budget || 45;

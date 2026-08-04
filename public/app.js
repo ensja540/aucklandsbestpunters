@@ -86,6 +86,7 @@
     const { rows } = M.bankSeries(allBets());
     const now = rows.length ? rows[rows.length - 1] : null;
     const playing = members().filter(m => bets.some(b => b.punter === m.id)).length;
+    const paying = members().filter(m => (m.budget ?? 0) > 0).length;
 
     const live = allBets().filter(M.isLive).length;
     const cta = $('#settleCta');
@@ -147,6 +148,7 @@
               <span class="cell-who">${silk(r.m.id, 16)}
                 <b>${esc(r.m.name)}</b>
                 ${r.m.title ? `<span class="tag">${esc(r.m.title)}</span>` : ''}
+                ${r.m.former ? '<span class="tag tag--past">Former member</span>' : ''}
                 ${r.hot >= 3 ? `<span class="tag tag--hot">🔥 ${r.hot} in a row</span>` : ''}
               </span>
             </td>
@@ -216,8 +218,10 @@
     const { rows } = M.bankSeries(bets);
     const perWeek = M.weeklyIn();
 
+    const paying = members().filter(m => (m.budget ?? 0) > 0);
+    const rate = paying[0]?.budget ?? M.WEEKLY_IN;
     $('#bankSub').textContent =
-      `${members().length} members × ${M.money(members()[0]?.budget ?? M.WEEKLY_IN, { whole: true })} a week = ${M.money(perWeek, { whole: true })} in the tin, every week.`;
+      `${paying.length} of us × ${M.money(rate, { whole: true })} a week = ${M.money(perWeek, { whole: true })} in the tin, every week.`;
 
     if (!rows.length) {
       $('#bankFigs').innerHTML = '';
@@ -434,7 +438,7 @@
 
   function renderOutlay() {
     const thisWeek = M.weekStart(M.today());
-    const people = shownMembers();
+    const people = shownMembers().filter(m => !m.former);   // no allowance, no meter
     $('#budgetLabel').textContent = M.money(members()[0]?.budget ?? 45, { whole: true });
 
     const week = allBets().filter(b => M.weekStart(b.date) === thisWeek);
@@ -990,11 +994,14 @@
 
   function renderSettings() {
     $('#memberRows').innerHTML = members().map(m => `
-      <div class="member-row" data-id="${m.id}">
+      <div class="member-row${m.former ? ' member-row--past' : ''}" data-id="${m.id}">
         <span class="member-silk">${silk(m.id, 18)}</span>
         <input class="member-name" value="${esc(m.name)}" maxlength="30" aria-label="Member name">
         <input class="member-title" value="${esc(m.title || '')}" maxlength="24" placeholder="Title (optional)" aria-label="Title">
-        <input class="member-budget" type="number" min="0" step="5" value="${m.budget ?? 45}" aria-label="Weekly allowance">
+        <input class="member-budget" type="number" min="0" step="any" value="${m.budget ?? M.WEEKLY_IN}" aria-label="Weekly contribution">
+        <label class="check check--inline" title="Keeps their bets in the stats but takes them out of the rota and the pool">
+          <input type="checkbox" class="member-former" ${m.former ? 'checked' : ''}> Former
+        </label>
         <button type="button" class="rowbtn" data-drop="${m.id}">Remove</button>
       </div>`).join('');
     $('#goalRows').innerHTML = (M.state.club.goals || []).map(g => `
@@ -1384,16 +1391,21 @@
       const next = rows.map((row, i) => {
         const id = row.dataset.id;
         const existing = members().find(m => m.id === id);
+        const former = row.querySelector('.member-former').checked;
         return {
           id,
           name: row.querySelector('.member-name').value.trim() || `Member ${i + 1}`,
           title: row.querySelector('.member-title').value.trim(),
-          budget: Number(row.querySelector('.member-budget').value) || 0,
+          budget: former ? 0 : Number(row.querySelector('.member-budget').value) || 0,
+          former,
           slot: existing && typeof existing.slot === 'number' ? existing.slot : i
         };
       });
       if (!next.length) { toast('Keep at least one member'); return; }
-      M.setClub({ members: next });
+      // A former member drops out of the rota but keeps every bet they made.
+      const rota = M.rotaOrder().filter(id => !next.find(m => m.id === id && m.former));
+      next.forEach(m => { if (!m.former && !rota.includes(m.id)) rota.push(m.id); });
+      M.setClub({ members: next, rota });
       render();
       toast('Club saved');
     });
