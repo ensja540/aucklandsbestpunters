@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Auckland's Best Punters — the ledger</title>
-<meta name="description" content="Club ledger for Auckland's Best Punters. The ladder, weekly outlay, which sports pay, and how many legs is too many.">
+<meta name="description" content="Club ledger for Auckland's Best Punters. What's in the tin, whose turn it is, which sports pay, and how many legs is too many.">
 <meta name="theme-color" content="#0b0d10">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 27'%3E%3Cpath d='M8 1h8l7 4.5-3.2 6L16 9.3V26H8V9.3l-3.8 2.2L1 5.5Z' fill='%232a78d6'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
@@ -22,7 +22,7 @@
       </span>
     </div>
     <nav class="tabs" aria-label="Sections">
-      <button class="tab is-on" data-view="dashboard" aria-current="page">Ladder</button>
+      <button class="tab is-on" data-view="dashboard" aria-current="page">The club</button>
       <button class="tab" data-view="bets">Place a bet</button>
       <button class="tab" data-view="settings">Club</button>
     </nav>
@@ -107,8 +107,8 @@
       <section class="card card--wide" data-chart="ladder">
         <div class="card-head">
           <div>
-            <h2>The ladder</h2>
-            <p class="card-sub">Every member, ranked on profit. Tap a name to follow just them.</p>
+            <h2>The squad</h2>
+            <p class="card-sub">Everyone’s book. Tap a name to follow just their bets — it all lands in the same tin.</p>
           </div>
         </div>
         <div class="tablewrap" id="ladder"></div>
@@ -161,7 +161,7 @@
         <div class="card-head">
           <div>
             <h2>Form grid</h2>
-            <p class="card-sub">Every member's week, green light to red light. Blue is up, red is down.</p>
+            <p class="card-sub">How each week went for each of us. Blue is up, red is down.</p>
           </div>
           <div class="seg" role="group" aria-label="View as">
             <button class="seg-btn is-on" data-mode="chart">Chart</button>
@@ -177,7 +177,7 @@
         <div class="card-head">
           <div>
             <h2>Profit by sport</h2>
-            <p class="card-sub">Where the club's money actually comes from.</p>
+            <p class="card-sub">Which codes are paying for the trip.</p>
           </div>
           <div class="seg" role="group" aria-label="View as">
             <button class="seg-btn is-on" data-mode="chart">Chart</button>
@@ -209,7 +209,7 @@
         <div class="card-head">
           <div>
             <h2>The honours board</h2>
-            <p class="card-sub">Silverware and wooden spoons, updated with every settled bet.</p>
+            <p class="card-sub">Bragging rights and gentle abuse, updated with every settled bet. The tin is what counts.</p>
           </div>
         </div>
         <div class="prizes" id="prizes"></div>
@@ -238,8 +238,8 @@
       <section class="card card--wide" data-chart="book">
         <div class="card-head">
           <div>
-            <h2>The full book</h2>
-            <p class="card-sub">The whole club, every number.</p>
+            <h2>Everyone’s numbers</h2>
+            <p class="card-sub">The detail behind each member’s week.</p>
           </div>
         </div>
         <div class="tablewrap" id="bookTable"></div>

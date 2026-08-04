@@ -13,7 +13,7 @@
   let betsFilter = 'all';
   let editing = null;
   let formResult = 'pending';
-  let ladderSort = 'profit';
+  let ladderSort = 'order';   // squad order by default — it isn't a leaderboard
 
   const members = () => M.state.club.members;
   const member = id => members().find(m => m.id === id) || members()[0] || { id: 'm1', name: 'Member', slot: 0 };
@@ -72,46 +72,49 @@
         if (ladderSort === 'strike') return (b.strike ?? -9) - (a.strike ?? -9);
         if (ladderSort === 'bets') return b.settled - a.settled;
         if (ladderSort === 'turnover') return b.turnover - a.turnover;
-        return b.profit - a.profit;
+        if (ladderSort === 'profit') return b.profit - a.profit;
+        const order = M.rotaOrder();
+        const pos = m => (order.indexOf(m.id) + 1 || 99);
+        return pos(a.m) - pos(b.m);
       });
   }
 
+  // One club, one number: what's in the tin. Nobody "leads".
   function renderScoreboard(bets) {
     const club = M.summarise(bets);
     const weeks = new Set(bets.map(b => M.weekStart(b.date))).size;
-    const rows = members().map(m => ({ m, s: M.summarise(bets.filter(b => b.punter === m.id)) }))
-      .sort((a, b) => b.s.profit - a.s.profit);
-    const active = rows.filter(r => r.s.bets > 0);
-
-    if (!active.length) {
-      $('#verdictEyebrow').textContent = 'The ledger';
-      $('#verdictHero').textContent = '—';
-      $('#verdictSub').textContent = 'Nothing on the board yet.';
-      $('#verdictFacts').innerHTML = '';
-      return;
-    }
-
-    const top = active[0], second = active[1];
-    const margin = second ? top.s.profit - second.s.profit : top.s.profit;
-
-    $('#verdictEyebrow').innerHTML = `${silk(top.m.id, 15)} ${esc(top.m.name)} leads by`;
-    $('#verdictHero').textContent = M.money(Math.abs(margin));
-    $('#verdictSub').textContent =
-      `${club.settled} settled bet${club.settled === 1 ? '' : 's'} · ${active.length} member${active.length === 1 ? '' : 's'} · ${weeks} week${weeks === 1 ? '' : 's'}` +
-      (club.pending ? ` · ${club.pending} still running` : '');
+    const { rows } = M.bankSeries(allBets());
+    const now = rows.length ? rows[rows.length - 1] : null;
+    const playing = members().filter(m => bets.some(b => b.punter === m.id)).length;
 
     const live = allBets().filter(M.isLive).length;
     const cta = $('#settleCta');
     cta.hidden = live === 0;
     cta.textContent = live ? `Settle ${live} open bet${live === 1 ? '' : 's'}` : '';
 
-    const inFront = active.filter(r => r.s.profit > 0).length;
+    if (!now) {
+      $('#verdictEyebrow').textContent = 'In the tin';
+      $('#verdictHero').textContent = M.money(0);
+      $('#verdictSub').textContent = 'Nothing on the board yet. First bet gets us started.';
+      $('#verdictFacts').innerHTML = '';
+      return;
+    }
+
+    const goal = (M.state.club.goals || [])[0];
+    const share = goal && goal.target ? Math.min(1, now.bank / goal.target) : null;
+
+    $('#verdictEyebrow').textContent = 'In the tin';
+    $('#verdictHero').textContent = M.money(now.bank);
+    $('#verdictSub').textContent =
+      `${club.settled} settled bet${club.settled === 1 ? '' : 's'} from ${playing} of us across ${weeks} week${weeks === 1 ? '' : 's'}` +
+      (club.pending ? ` · ${club.pending} still running` : '');
+
     $('#verdictFacts').innerHTML = `
-      <div><dt>Club net</dt><dd class="${club.profit >= 0 ? 'up' : 'down'}">${M.money(club.profit, { sign: true })}</dd></div>
+      <div><dt>Paid in</dt><dd>${M.money(now.contributions, { whole: true })}</dd></div>
+      <div><dt>Betting P/L</dt><dd class="${club.profit >= 0 ? 'up' : 'down'}">${M.money(club.profit, { sign: true })}</dd></div>
       <div><dt>Club ROI</dt><dd class="${(club.roi || 0) >= 0 ? 'up' : 'down'}">${M.pctSigned(club.roi)}</dd></div>
       <div><dt>Strike rate</dt><dd>${M.pct(club.strike, 0)}</dd></div>
-      <div><dt>Turnover</dt><dd>${M.money(club.turnover, { whole: true })}</dd></div>
-      <div><dt>In front</dt><dd>${inFront} of ${active.length}</dd></div>`;
+      ${goal ? `<div><dt>${esc(goal.emoji || '')} ${esc(goal.name || 'Goal')}</dt><dd>${M.pct(share, 0)}</dd></div>` : ''}`;
   }
 
   function renderLadder(bets) {
@@ -119,8 +122,10 @@
     const any = rows.some(r => r.bets > 0);
     if (!any) { $('#ladder').innerHTML = '<p class="plot-empty">No bets in this slice.</p>'; return; }
 
+    const club = M.summarise(bets);
+
     const head = [
-      ['', 'pos'], ['Member', 'name'], ['Profit', 'profit'], ['ROI', 'roi'],
+      ['Member', 'name'], ['Profit', 'profit'], ['ROI', 'roi'],
       ['Strike', 'strike'], ['Bets', 'bets'], ['Turnover', 'turnover'], ['Form', 'form']
     ];
 
@@ -138,7 +143,6 @@
             return `<i class="form-cell ${cls}"${style} title="${M.shortDate(b.date)} ${esc(sportLabel(b))} ${M.money(M.profitOf(b), { sign: true })}"></i>`;
           }).join('');
           return `<tr class="ladder-row${on ? ' is-picked' : ''}" data-pick="${r.m.id}" tabindex="0">
-            <td class="pos">${r.bets ? i + 1 : '—'}</td>
             <td>
               <span class="cell-who">${silk(r.m.id, 16)}
                 <b>${esc(r.m.name)}</b>
@@ -154,6 +158,15 @@
             <td><span class="form-line">${cells || '<span class="muted-note">—</span>'}</span></td>
           </tr>`;
         }).join('')}</tbody>
+        <tfoot><tr>
+          <td>The club</td>
+          <td class="${club.profit >= 0 ? 'up' : 'down'}">${M.money(club.profit, { sign: true })}</td>
+          <td class="${(club.roi || 0) >= 0 ? 'up' : 'down'}">${M.pctSigned(club.roi)}</td>
+          <td>${M.pct(club.strike, 0)}</td>
+          <td>${club.settled}</td>
+          <td>${M.money(club.turnover, { whole: true })}</td>
+          <td></td>
+        </tr></tfoot>
       </table>`;
   }
 
@@ -340,27 +353,32 @@
     }, [])));
 
     const active = members().filter(m => bets.some(b => b.punter === m.id));
-    const picked = filters.punter !== 'all'
-      ? active.filter(m => m.id === filters.punter)
-      : active.slice().sort((a, b) =>
-          (running[b.id][weeks.length - 1] || 0) - (running[a.id][weeks.length - 1] || 0)
-        ).slice(0, FOCUS_MAX);
 
+    // The club's line is the story. Individual lines sit behind it as context,
+    // and picking a member brings just that one forward.
+    const clubLine = weeks.map((w, i) =>
+      active.reduce((sum, m) => sum + (running[m.id][i] || 0), 0));
+    const picked = filters.punter !== 'all' ? active.filter(m => m.id === filters.punter) : [];
     const isPicked = id => picked.some(m => m.id === id);
 
     $('#cumeSub').textContent = filters.punter !== 'all'
-      ? `${member(filters.punter).name} against the rest of the club.`
-      : `Cumulative profit by week. The top ${picked.length} in colour, the rest of the club behind them.`;
+      ? `${member(filters.punter).name}'s running profit, with the club's total behind it.`
+      : 'The club\'s running profit, with everyone\'s own line behind it. Tap a name in the squad to follow one.';
 
-    legend('#cumeLegend', picked.map(m => ({ color: colorOf(m.id), label: m.name })), 'line',
-      active.length > picked.length ? 'The field' : null);
+    legend('#cumeLegend', [
+      { color: Charts.css('--s1'), label: 'The club' },
+      ...picked.map(m => ({ color: colorOf(m.id), label: m.name }))
+    ], 'line', active.length ? 'Members' : null);
 
     Charts.line($('#cumeChart'), {
       labels: weeks.map(M.shortDate),
-      series: active.map(m => ({
-        key: m.id, name: m.name, short: firstName(m),
-        color: colorOf(m.id), muted: !isPicked(m.id), values: running[m.id]
-      })),
+      series: [
+        ...active.map(m => ({
+          key: m.id, name: m.name, short: firstName(m),
+          color: colorOf(m.id), muted: !isPicked(m.id), values: running[m.id]
+        })),
+        { key: 'club', name: 'The club', short: 'Club', color: Charts.css('--s1'), lead: true, values: clubLine }
+      ],
       height: 300,
       labelRoom: 76,
       fmt: v => M.moneyShort(v),
@@ -371,8 +389,11 @@
     });
 
     table('#cumeTable', {
-      head: ['Week', ...active.map(m => firstName(m))],
-      rows: weeks.map((w, i) => [M.shortDate(w), ...active.map(m => signed(running[m.id][i]))])
+      head: ['Week', 'The club', ...active.map(m => firstName(m))],
+      rows: weeks.map((w, i) => [
+        M.shortDate(w), `<b>${signed(clubLine[i])}</b>`,
+        ...active.map(m => signed(running[m.id][i]))
+      ])
     });
   }
 
@@ -471,8 +492,8 @@
     const shown = rows.length > 10 ? [...rows.slice(0, 9), foldRest(rows.slice(9), 'Other sports')] : rows;
     const mixed = bets.filter(b => M.isSettled(b) && M.sportsOf(b).length > 1).length;
     $('[data-chart="sport"] .card-sub').textContent = mixed
-      ? `Where the money comes from. ${mixed} mixed ticket${mixed === 1 ? '' : 's'} split across their codes.`
-      : 'Where the club\'s money actually comes from.';
+      ? `Which codes are paying for the trip. ${mixed} mixed ticket${mixed === 1 ? '' : 's'} split across their codes.`
+      : 'Which codes are paying for the trip.';
 
     polarityLegend('#sportLegend');
 
