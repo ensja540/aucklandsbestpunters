@@ -712,7 +712,8 @@
   let celTimer = null;
   let celReturnFocus = null;
 
-  const isBigWin = b => b.result === 'win' && b.legs > 1 && M.profitOf(b) > 0;
+  // A multi that came home — including one that lost a leg to a void and still paid.
+  const isBigWin = b => (b.result === 'win' || b.result === 'part') && b.legs > 1 && M.profitOf(b) > 0;
 
   function seenWins() {
     try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')); }
@@ -824,7 +825,7 @@
             <td><input class="paid-input" type="number" min="0" step="any" inputmode="decimal"
                   value="${(b.stake * b.odds).toFixed(2)}" data-paid="${b.id}" aria-label="What it paid"></td>
             <td>
-              <button class="rowbtn rowbtn--win" data-cash="${b.id}">Collected</button>
+              <button class="rowbtn rowbtn--win" data-cash="${b.id}">Paid</button>
               <button class="rowbtn" data-settle="loss" data-id="${b.id}">Lost</button>
               <button class="rowbtn" data-settle="void" data-id="${b.id}">Void</button>
             </td>
@@ -833,18 +834,36 @@
       </table>`;
   }
 
-  // "Collected $x" is the honest way in: the payout is what people remember,
-  // so the odds get recalculated from it rather than the other way round.
+  // The payout is what people actually remember, so it's the way in. The amount
+  // decides the result: nothing is a loss, the stake back is a void, the full
+  // return is a win, and anything else is a partial — a dead leg in a multi, an
+  // each-way that only placed, a cash-out. The original price is never rewritten.
   function cashIn(id) {
     const bet = allBets().find(b => b.id === id);
     const input = $(`[data-paid="${id}"]`);
     if (!bet || !input) return;
+
     const paid = Number(input.value);
-    if (!(paid > 0)) { toast('Enter what it paid'); return; }
-    const odds = Math.max(0.0001, Math.round((paid / bet.stake) * 10000) / 10000);
-    const saved = M.updateBet(id, { result: 'win', odds });
+    if (!(paid >= 0) || input.value === '') { toast('Enter what it paid'); return; }
+
+    const full = bet.stake * bet.odds;
+    const near = (a, b) => Math.abs(a - b) < 0.005;
+
+    let result = 'part';
+    if (paid === 0) result = 'loss';
+    else if (near(paid, full)) result = 'win';
+    else if (near(paid, bet.stake)) result = 'void';
+
+    const saved = M.updateBet(id, {
+      result,
+      payout: result === 'part' ? Math.round(paid * 100) / 100 : null
+    });
     render();
-    if (!celebrate(saved)) toast(`Collected ${M.money(paid)}`);
+
+    if (celebrate(saved)) return;
+    const word = { loss: 'Bad luck', void: 'Marked void', win: `Collected ${M.money(paid)}` }[result]
+      || `Part paid ${M.money(paid)} · ${M.money(M.profitOf(saved), { sign: true })}`;
+    toast(word);
   }
 
   /* ── bets table ─────────────────────────────────────────── */
@@ -863,6 +882,7 @@
     const kind = b => b.legs === 1 ? 'Single' : `${b.legs} legs${b.sgm ? ' · SGM' : ''}`;
     const pill = b => ({
       win: '<span class="pill pill--win">Won</span>',
+      part: `<span class="pill pill--part">Part${M.profitOf(b) > 0 ? '' : ' · short'}</span>`,
       loss: '<span class="pill pill--loss">Lost</span>',
       void: '<span class="pill">Void</span>',
       pending: '<span class="pill pill--pending">Pending</span>'
@@ -1108,12 +1128,14 @@
 
     if (!(stake > 0) || !(odds > 1)) { box.innerHTML = ''; return; }
 
-    const ret = stake * odds;
+    const partial = formResult === 'part';
+    const ret = partial ? numOf('#bPaid') : stake * odds;
     const profit = ret - stake;
     box.innerHTML =
       `<span class="pot-line">${M.money(stake)} at ${odds.toFixed(2)}</span>` +
-      `<span class="pot-line">Returns <b>${M.money(ret)}</b></span>` +
-      `<span class="pot-line">Profit <b class="${profit >= 0 ? 'up' : 'down'}">${M.money(profit, { sign: true })}</b></span>`;
+      `<span class="pot-line">${partial ? 'Collected' : 'Returns'} <b>${M.money(ret)}</b></span>` +
+      `<span class="pot-line">${partial ? 'Result' : 'Profit'} <b class="${profit >= 0 ? 'up' : 'down'}">${M.money(profit, { sign: true })}</b></span>` +
+      (partial ? `<span class="pot-line pot-note">counts as a ${profit > 0 ? 'win' : 'loss'} for strike rate</span>` : '');
   }
 
   function setPriceMode() {          // reset the form back to odds-led
@@ -1134,6 +1156,7 @@
     $('#bStake').value = 10;
     $('#bOdds').value = '2.00';
     $('#bSgm').checked = false;
+    $('#bPaid').value = '';
     $('#formTitle').textContent = 'Add a bet';
     $('#bSubmit').textContent = 'Add bet';
     $('#bCancel').hidden = true;
@@ -1143,6 +1166,13 @@
 
   function syncResultButtons() {
     $$('#bResult .seg-btn').forEach(btn => btn.classList.toggle('is-on', btn.dataset.result === formResult));
+    const partial = formResult === 'part';
+    $('#paidField').hidden = !partial;
+    if (partial && !$('#bPaid').value) {
+      // start from the full return; they'll knock it down to what actually came back
+      $('#bPaid').value = (numOf('#bStake') * numOf('#bOdds')).toFixed(2);
+    }
+    updatePotential();
   }
 
   function loadIntoForm(id) {
@@ -1161,6 +1191,7 @@
     $('#bStake').value = b.stake;
     $('#bOdds').value = b.odds;
     $('#bSgm').checked = b.sgm;
+    $('#bPaid').value = b.payout === null || b.payout === undefined ? '' : b.payout;
     $('#formTitle').textContent = 'Edit bet';
     $('#bSubmit').textContent = 'Save changes';
     $('#bCancel').hidden = false;
@@ -1305,6 +1336,7 @@
     const priceFields = { bStake: 'stake', bOdds: 'odds', bReturn: 'return', bProfit: 'profit' };
     Object.entries(priceFields).forEach(([id, key]) =>
       $('#' + id).addEventListener('input', () => recalcPrice(key)));
+    $('#bPaid').addEventListener('input', updatePotential);
 
     // sport chips: Enter or comma commits, × removes
     $('#bSport').addEventListener('keydown', e => {
@@ -1333,7 +1365,8 @@
         sgm: $('#bSgm').checked && legs > 1,
         stake: Number($('#bStake').value),
         odds: formOdds(),
-        result: formResult
+        result: formResult,
+        payout: formResult === 'part' ? Number($('#bPaid').value) || 0 : null
       };
       if (!payload.date || !(payload.stake > 0) || !(payload.odds >= 1.01)) {
         toast('Check the date, stake and odds');

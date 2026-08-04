@@ -448,6 +448,9 @@ tfoot td { font-weight: 600; border-top: 1px solid var(--line); border-bottom: 0
 .pill--win { border-color: transparent; background: var(--good); color: #fff; }
 .pill--loss { border-color: transparent; background: var(--critical); color: #fff; }
 .pill--pending { border-style: dashed; }
+.pill--part { border-color: transparent; background: var(--warning); color: #1a1a19; }
+.field-hint { font-size: 10.5px; color: var(--muted); }
+.pot-note { color: var(--muted); font-size: 12px; }
 .rowbtn { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--ink-2); }
 .rowbtn:hover { background: var(--plane-2); color: var(--ink); }
 .rowbtn + .rowbtn { margin-left: 4px; }

@@ -92,8 +92,13 @@ it just saves locally on each device.
   themselves in. Change the stake afterwards and whichever you touched last holds
   while the rest re-work. Any amount is accepted; nothing is rounded to 50c.
 - When a bet settles, **Waiting on a result** lists it with the payout prefilled.
-  Change the number to whatever actually landed and hit *Collected* — the odds are
-  recalculated from the real payout, so partial cash-outs and bonus boosts stay honest.
+  Change it to whatever actually landed and hit **Paid** — the amount decides the
+  result: nothing is a loss, the stake back is a void, the full return is a win,
+  and anything in between is a **partial**. The price you took is never rewritten.
+- **Partials** cover a dead leg that shortened a multi, an each-way that only
+  placed, a cash-out, or a bonus boost. The bet keeps its original odds and stores
+  what actually came back. For strike rate a partial counts as a win if it beat the
+  stake and a loss if it didn't — otherwise strike rate stops meaning anything.
 - **A ticket can cover several codes.** Type each sport and press Enter to add it
   as a chip. A mixed multi splits its stake and its result evenly across the codes
   on it, so *profit by sport* still adds up to the club total while the ticket

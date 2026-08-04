@@ -8,7 +8,8 @@ const ABP = (() => {
   const KEY_PASS = 'abp:pass';
 
   const SPORTS = ['NRL', 'Football', 'NBA', 'Rugby Union', 'AFL', 'Cricket', 'Tennis',
-                  'Horse racing', 'Harness', 'Greyhounds', 'UFC', 'NFL', 'Golf', 'Esports'];
+                  'Horse racing', 'Harness', 'Greyhounds', 'UFC', 'NFL', 'Golf', 'Darts',
+                  'Esports', 'Boxing', 'Baseball', 'Ice hockey', 'Motorsport'];
 
   // The club. Slot fixes each member's colour for good — it never follows their
   // rank on the ladder, so a filter can't repaint anyone.
@@ -129,18 +130,32 @@ const ABP = (() => {
 
   /* ── bet maths ───────────────────────────────────────────── */
 
-  const isSettled = b => b.result === 'win' || b.result === 'loss' || b.result === 'void';
+  const RESULTS = ['win', 'part', 'loss', 'void', 'pending'];
+  const isSettled = b => b.result !== 'pending';
   const isLive = b => b.result === 'pending';
 
+  /* `payout` is what actually came back, for anything the odds can't describe:
+     a dead leg that shortened a multi, an each-way that only placed, a
+     cash-out. When it's set it wins over the odds; otherwise the odds decide. */
   function returned(b) {
+    if (b.result === 'pending') return 0;
+    if (b.payout !== null && b.payout !== undefined) return b.payout;
     if (b.result === 'win') return b.stake * b.odds;
     if (b.result === 'void') return b.stake;
-    return 0;
+    return 0;                                   // loss, or a part with nothing recorded
   }
 
-  // Void bets return the stake, so they are neither profit nor turnover.
   function profitOf(b) { return isSettled(b) ? returned(b) - b.stake : 0; }
+
+  // Void money never really went on, so it isn't turnover. A partial did.
   function turnoverOf(b) { return b.result === 'void' ? 0 : b.stake; }
+
+  // A partial counts as a win if it beat the stake and a loss if it didn't —
+  // otherwise strike rate quietly stops meaning anything.
+  function outcomeOf(b) {
+    if (b.result === 'part') return profitOf(b) > 0 ? 'win' : 'loss';
+    return b.result;
+  }
   // Every leg count stands on its own until they get silly, so a 9-leg roughie
   // doesn't get buried in with the 6-leggers.
   const LEG_FOLD = 12;
@@ -152,7 +167,7 @@ const ABP = (() => {
 
   function summarise(bets) {
     const s = {
-      bets: bets.length, settled: 0, pending: 0, wins: 0, losses: 0, voids: 0,
+      bets: bets.length, settled: 0, pending: 0, wins: 0, losses: 0, voids: 0, parts: 0,
       staked: 0, turnover: 0, profit: 0, pendingStake: 0, pendingReturn: 0,
       roi: null, strike: null, avgOdds: null, avgStake: null, best: null, worst: null
     };
@@ -167,8 +182,10 @@ const ABP = (() => {
       s.turnover += turnoverOf(b);
       const p = profitOf(b);
       s.profit += p;
-      if (b.result === 'win') { s.wins++; oddsSum += b.odds; oddsN++; }
-      else if (b.result === 'loss') { s.losses++; oddsSum += b.odds; oddsN++; }
+      if (b.result === 'part') s.parts++;
+      const outcome = outcomeOf(b);
+      if (outcome === 'win') { s.wins++; oddsSum += b.odds; oddsN++; }
+      else if (outcome === 'loss') { s.losses++; oddsSum += b.odds; oddsN++; }
       else s.voids++;
       if (!s.best || p > profitOf(s.best)) s.best = b;
       if (!s.worst || p < profitOf(s.worst)) s.worst = b;
@@ -225,8 +242,9 @@ const ABP = (() => {
         r.turnover += turnoverOf(b) * share;
         r.profit += profitOf(b) * share;
         r.returned += returned(b) * share;
-        if (b.result === 'win') { r.wins++; r.oddsSum += b.odds; r.oddsN++; }
-        else if (b.result === 'loss') { r.losses++; r.oddsSum += b.odds; r.oddsN++; }
+        const outcome = outcomeOf(b);
+        if (outcome === 'win') { r.wins++; r.oddsSum += b.odds; r.oddsN++; }
+        else if (outcome === 'loss') { r.losses++; r.oddsSum += b.odds; r.oddsN++; }
         else r.voids++;
       }
     }
@@ -240,11 +258,11 @@ const ABP = (() => {
 
   // Longest run of one result, oldest → newest. Voids don't break a run.
   function longestRun(bets, result) {
-    const settled = bets.filter(b => b.result === 'win' || b.result === 'loss')
+    const settled = bets.filter(b => ['win', 'loss'].includes(outcomeOf(b)))
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
     let best = 0, run = 0;
     for (const b of settled) {
-      run = b.result === result ? run + 1 : 0;
+      run = outcomeOf(b) === result ? run + 1 : 0;
       if (run > best) best = run;
     }
     return best;
@@ -393,10 +411,12 @@ const ABP = (() => {
       event: (b.event || '').trim(),
       legs: Math.max(1, Math.round(Number(b.legs) || 1)),   // no upper limit — go nuts
       sgm: !!b.sgm,
+      payout: b.payout === null || b.payout === undefined || b.payout === ''
+        ? null : Math.round(Number(b.payout) * 100) / 100,
       stake: Math.round((Number(b.stake) || 0) * 100) / 100,
       // 4dp, so a payout typed in as dollars survives the trip back to odds
       odds: Math.round((Number(b.odds) || 1) * 10000) / 10000,
-      result: ['win', 'loss', 'void', 'pending'].includes(b.result) ? b.result : 'pending',
+      result: RESULTS.includes(b.result) ? b.result : 'pending',
       updatedAt: b.updatedAt || Date.now(),
       deleted: !!b.deleted
     };

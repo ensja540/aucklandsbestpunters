@@ -86,7 +86,8 @@ function clean(b) {
     sgm: !!b.sgm,
     stake: round2(b.stake),
     odds: Math.round((Number(b.odds) || 0) * 10000) / 10000,
-    result: ['win', 'loss', 'void', 'pending'].includes(b.result) ? b.result : 'pending',
+    result: ['win', 'part', 'loss', 'void', 'pending'].includes(b.result) ? b.result : 'pending',
+    payout: b.payout === null || b.payout === undefined || b.payout === '' ? null : round2(b.payout),
     updatedAt: Number(b.updatedAt) || Date.now(),
     deleted: !!b.deleted
   };

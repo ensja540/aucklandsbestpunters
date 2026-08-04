@@ -304,9 +304,15 @@
           <div class="seg seg--result" id="bResult" role="group" aria-label="Result">
             <button type="button" class="seg-btn is-on" data-result="pending">Pending</button>
             <button type="button" class="seg-btn" data-result="win">Won</button>
+            <button type="button" class="seg-btn" data-result="part">Part paid</button>
             <button type="button" class="seg-btn" data-result="loss">Lost</button>
             <button type="button" class="seg-btn" data-result="void">Void</button>
           </div>
+        </div>
+        <div class="field field--sm" id="paidField" hidden>
+          <label for="bPaid">Collected</label>
+          <input type="number" id="bPaid" min="0" step="any" inputmode="decimal">
+          <span class="field-hint">Void leg, each-way place, cash-out</span>
         </div>
         <label class="check"><input type="checkbox" id="bSgm"> Same-game multi</label>
         <p class="potential" id="bPotential"></p>
